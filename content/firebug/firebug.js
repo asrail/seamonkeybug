@@ -190,10 +190,10 @@ top.Firebug =
         for (var i = basePrefNames; i < prefNames.length; ++i)
             this[prefNames[i]] = this.getPref(this.prefDomain, prefNames[i]);
 
-        if (FBTrace.DBG_OPTIONS)                                                                                       /*@explore*/
-        {                                                                                                              /*@explore*/
-             for (var i = 0; i < prefNames.length; ++i)                                                                /*@explore*/
-                FBTrace.sysout("firebug.initialize option "+this.prefDomain+"."+prefNames[i]+"="+this[prefNames[i]]+"\n");                 /*@explore*/
+        if (FBTrace.DBG_OPTIONS)
+        {
+             for (var i = 0; i < prefNames.length; ++i)
+                FBTrace.sysout("firebug.initialize option "+this.prefDomain+"."+prefNames[i]+"="+this[prefNames[i]]+"\n");
         }
         if (FBTrace.DBG_INITIALIZE)
             FBTrace.sysout("firebug.initialize prefDomain "+this.prefDomain);
@@ -263,10 +263,10 @@ top.Firebug =
      */
     initializeUI: function(detachArgs)
     {
-        if (FBTrace.DBG_INITIALIZE)                                                                                    /*@explore*/
-            FBTrace.dumpProperties("firebug.initializeUI this.disabledAlways="+this.disabledAlways+					   /*@explore*/
-                    " detachArgs:", detachArgs);                      												   /*@explore*/
-                                                                                                                       /*@explore*/
+        if (FBTrace.DBG_INITIALIZE)
+            FBTrace.dumpProperties("firebug.initializeUI this.disabledAlways="+this.disabledAlways+
+                    " detachArgs:", detachArgs);
+
         TabWatcher.initialize(this);
         TabWatcher.addListener(this);
 
@@ -306,8 +306,8 @@ top.Firebug =
 
         this.closeDeadWindows();
         this.deleteTemporaryFiles();
-                                                                                                                       /*@explore*/
-        if (FBTrace.DBG_INITIALIZE) FBTrace.sysout("firebug.shutdown exited\n");                                       /*@explore*/
+        if (FBTrace.DBG_INITIALIZE)
+            FBTrace.sysout("firebug.shutdown exited\n");
     },
 
     // ----------------------------------------------------------------------------------------------------------------
@@ -323,7 +323,7 @@ top.Firebug =
     setSuspended: function(value)
     {
         var suspendMarker = $("fbStatusIcon");
-        if (FBTrace.DBG_WINDOWS)
+        if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("Firebug.setSuspended to "+value+"\n");
 
         if (value)
@@ -340,7 +340,7 @@ top.Firebug =
         {
             if (Firebug.isDetached())
             {
-                if (FBTrace.DBG_INITIALIZE)
+                if (FBTrace.DBG_ACTIVATION)
                     FBTrace.sysout("firebug.toggleSuspend detached\n");
                 FirebugContext.chrome.focus();
                 this.resume();
@@ -474,7 +474,7 @@ top.Firebug =
             }
         });
 
-        if (FBTrace.DBG_WINDOWS)
+        if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("active contexts urls "+contextURLSet.length);
 
         return contextURLSet;
@@ -577,10 +577,10 @@ top.Firebug =
 
         for (var i = 0; i < arguments.length; ++i)
             panelTypeMap[arguments[i].prototype.name] = arguments[i];
-                                                                                                                       /*@explore*/
-        if (FBTrace.DBG_INITIALIZE)                                                                                    /*@explore*/
-            for (var i = 0; i < arguments.length; ++i)                                                                 /*@explore*/
-                FBTrace.sysout("registerPanel "+arguments[i].prototype.name+"\n");                                     /*@explore*/
+
+        if (FBTrace.DBG_INITIALIZE)
+            for (var i = 0; i < arguments.length; ++i)
+                FBTrace.sysout("registerPanel "+arguments[i].prototype.name+"\n");
     },
 
     registerRep: function()
@@ -658,8 +658,8 @@ top.Firebug =
             FBTrace.sysout("firebug.setPref FAILS: Invalid preference "+prefName+" check that it is listed in defaults/prefs.js");
         }
 
-        if (FBTrace.DBG_OPTIONS)                                                                                       /*@explore*/
-            FBTrace.sysout("firebug.setPref type="+type+" name="+prefName+" value="+value+"\n");                       /*@explore*/
+        if (FBTrace.DBG_OPTIONS)
+            FBTrace.sysout("firebug.setPref type="+type+" name="+prefName+" value="+value+"\n");
     },
 
     increaseTextSize: function(amt)
@@ -694,9 +694,9 @@ top.Firebug =
         }
 
         delete optionUpdateMap[name];
-                                                                                                                       /*@explore*/
-        if (FBTrace.DBG_OPTIONS)  /*@explore*/
-            FBTrace.sysout("firebug.updatePref EXIT: "+name+"="+value+"\n");                      /*@explore*/
+
+        if (FBTrace.DBG_OPTIONS)
+            FBTrace.sysout("firebug.updatePref EXIT: "+name+"="+value+"\n");
     },
     // *******************************************************************************
     // External editors
@@ -917,7 +917,7 @@ top.Firebug =
     showBar: function(show)  // minimized <-> inBrowser  This code only works in browser.xul
     {
         var browser = FirebugChrome.getCurrentBrowser();
-        if (FBTrace.DBG_WINDOWS)
+        if (FBTrace.DBG_WINDOWS || FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("showBar("+show+") for browser "+browser.currentURI.spec+" FirebugContext "+FirebugContext);
 
         var shouldShow = show && !browser.detached;
@@ -932,7 +932,7 @@ top.Firebug =
         // Sync panel state after the showUI event is dispatched. syncPanel method calls
         // Panel.show method, which expects the active context to be already registered.
         if (show)
-            browser.chrome.syncPanel();
+            Firebug.chrome.syncPanel();
     },
 
     showKeys: function(shouldShow)
@@ -952,7 +952,7 @@ top.Firebug =
         window.openDialog("chrome://firebug/content/customizeShortcuts.xul", "", "chrome,centerscreen,dialog,modal,resizable=yes");
     },
 
-    closeFirebug: function()
+    closeFirebug: function(userCommand)
     {
         var browser = FirebugChrome.getCurrentBrowser();
 
@@ -970,7 +970,7 @@ top.Firebug =
         }
         // else minimized nothing to do
 
-        TabWatcher.unwatchBrowser(browser);
+        TabWatcher.unwatchBrowser(browser, userCommand);
         Firebug.resetTooltip();
     },
 
@@ -981,13 +981,13 @@ top.Firebug =
         if (panelName)
             browser.chrome.selectPanel(panelName);
 
-        if (browser.showFirebug)  // then we are debugging the selected tab
+        if (!Firebug.isClosed() && FirebugContext && browser.showFirebug)  // then we are debugging the selected tab
         {
             if (Firebug.isDetached()) // if we are out of the browser, just focus on the external window
-                browser.chrome.focus();
+                Firebug.chrome.focus();
             else if (Firebug.isMinimized()) // toggle minimize
                 Firebug.unMinimize();
-            else if (!forceOpen)
+            else if (!forceOpen)  // else isInBrowser
                 Firebug.minimizeBar();
         }
         else // then user commands debugging the selected tab
@@ -999,10 +999,13 @@ top.Firebug =
                     FBTrace.sysout("Firebug.toggleBar: a browser without showFirebug has a context! "+context.getName());
             }
 
-            browser.showFirebug = true;  // mark browser debugged
-
             if (Firebug.isClosed())
                 Firebug.setPlacement("inBrowser");
+            else if (Firebug.isMinimized())
+                Firebug.unMinimize();
+            else if (Firebug.isDetached())
+                Firebug.chrome.focus();
+            // else we are already inBrowser and create will show.
 
             var created = TabWatcher.watchBrowser(browser);  // create a context for this page
             if (!created)
@@ -1017,15 +1020,10 @@ top.Firebug =
 
     minimizeBar: function()  // just pull down the UI, but don't deactivate the context
     {
-        var browser = FirebugChrome.getCurrentBrowser();
-
-        if (!browser.chrome)
-            return null;
-
         if (Firebug.isDetached())  // TODO disable minimize on externalMode
         {
             // TODO reattach
-            browser.chrome.focus();
+            Firebug.chrome.focus();
         }
         else // inBrowser -> minimized
         {
@@ -1044,17 +1042,21 @@ top.Firebug =
 
     toggleDetachBar: function(forceOpen)  // detached -> closed; inBrowser -> detached TODO reattach
     {
-        var browser = FirebugChrome.getCurrentBrowser();
         if (!forceOpen && Firebug.isDetached())  // detached -> closed
             this.closeFirebug();
         else
             this.detachBar(FirebugContext);
     },
 
-    closeDetachedWindow: function(browser)
+    closeDetachedWindow: function(userCommands)
     {
         Firebug.setPlacement("none");
-        TabWatcher.unwatchBrowser(browser);
+        Firebug.showBar(false);
+
+        if (FirebugContext)
+            TabWatcher.unwatchBrowser(FirebugContext.browser, userCommands);
+        // else the user closed Firebug external window while not looking at a debugged web page.
+
         Firebug.resetTooltip();
     },
 
@@ -1075,6 +1077,11 @@ top.Firebug =
             Firebug.reattachContext(context.browser, context);
         });
 
+        if (FirebugContext)
+        {
+            var browser = FirebugChrome.getCurrentBrowser();
+            Firebug.showContext(browser, FirebugContext);
+        }
     },
 
     detachBar: function(context)
@@ -1473,7 +1480,7 @@ top.Firebug =
         {
             var name = data.substr(domain.length+1);
             var value = this.getPref(domain, name);
-            if (FBTrace.DBG_OPTIONS) FBTrace.sysout("firebug.observe name = value: "+name+"= "+value+"\n");                /*@explore*/
+            if (FBTrace.DBG_OPTIONS) FBTrace.sysout("firebug.observe name = value: "+name+"= "+value+"\n");
             this.updatePref(name, value);
         }
 
@@ -1530,7 +1537,7 @@ top.Firebug =
 
     setPlacement: function(toPlacement)
     {
-        if (FBTrace.DBG_PANELS)
+        if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("Firebug.setPlacement from "+Firebug.getPlacement()+" to "+toPlacement);
 
         for (Firebug.placement = 0; Firebug.placement < Firebug.placements.length; Firebug.placement++)
@@ -1618,7 +1625,7 @@ top.Firebug =
             else
             {
                 contentBox.setAttribute("collapsed", true);
-                Firebug.chrome.window.document.title = $("Firebug - inactive for selected Firefox tab");
+                Firebug.chrome.window.document.title = $STR("Firebug - inactive for selected Firefox tab");
             }
         }
         else
@@ -1633,6 +1640,8 @@ top.Firebug =
         Firebug.updateActiveContexts(null);
         if (TabWatcher.contexts.length < 1)  // TODO shutdown ?
             Firebug.setPlacement("none");
+
+        delete browser.showFirebug; // ok we are done debugging
     },
 
     // Either a top level or a frame, (interior window) for an exist context is seen by the tabWatcher.
@@ -1677,41 +1686,13 @@ top.Firebug =
         dispatch(modules, "destroyContext", [context, persistedState]);
 
         if (FirebugContext == context)
-            FirebugContext = null;
+            Firebug.chrome.setFirebugContext(null);  // FirebugContext is about to be destroyed
 
         var browser = context.browser;
         // Persist remnants of the context for restoration if the user reloads
         browser.panelName = context.panelName;
         browser.sidePanelNames = context.sidePanelNames;
 
-        if (Firebug.isDetached())
-        {
-            clearContextTimeout = setTimeout(function delayClearContext()
-            {
-                if (context == FirebugContext)
-                {
-                    browser.isSystemPage = true;  // XXXjjb I don't believe this is ever tested.
-                    Firebug.showContext(browser, null);
-                }
-            }, 100);
-        }
-
-        if (Firebug.extenalChrome)
-        {
-            if (FBTrace.DBG_WINDOWS)
-                FBTrace.sysout("Firebug.destroyContext Firebug.extenalChrome: "+Firebug.extenalChrome+" browser.firebugReload: "+browser.firebugReload);
-            if (browser.firebugReload)
-                delete browser.firebugReload; // and don't killWindow
-            else
-                this.killWindow(browser, Firebug.extenalChrome);
-        }
-        else
-        {
-            if (browser.firebugReload)
-                delete browser.firebugReload;
-            else
-                delete browser.showFirebug; // ok we are done debugging
-        }
         // next the context is deleted and removed from the TabWatcher, we clean up in unWatchBrowser
     },
 
@@ -2012,12 +1993,14 @@ Firebug.Panel =
             {
                 if (FBTrace.DBG_ERRORS)
                     FBTrace.sysout("firebug.Panel showToolbarButtons this.context ("+this.context.getName()+") has no browser in window "+window.location+" this.context", this.context);
-
                 return;
             }
+
             var buttons = Firebug.chrome.$(buttonsId);
             if (buttons)
-                collapse(buttons, show ? "false" : "true");
+            {
+                collapse(buttons, !show);
+            }
             else
             {
                 if (FBTrace.DBG_ERRORS)
@@ -2127,7 +2110,7 @@ Firebug.Panel =
         if (!object)
             object = this.getDefaultSelection(this.context);
 
-        if(FBTrace.DBG_PANELS)    /*@explore*/
+        if(FBTrace.DBG_PANELS)
             FBTrace.sysout("firebug.select "+this.name+" forceUpdate: "+forceUpdate+" "+object+((object==this.selection)?"==":"!=")+this.selection);
 
         if (forceUpdate || object != this.selection)
@@ -2492,8 +2475,8 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         else
             this.anonSourceBoxes.push(sourceBox);
 
-        if (FBTrace.DBG_SOURCEFILES)                                                                                                /*@explore*/
-            FBTrace.sysout("firebug.createSourceBox with "+sourceBox.lines.length+" lines for "+sourceFile+(sourceFile.href?" sourceBoxes":" anon "), sourceBox); /*@explore*/
+        if (FBTrace.DBG_SOURCEFILES)
+            FBTrace.sysout("firebug.createSourceBox with "+sourceBox.lines.length+" lines for "+sourceFile+(sourceFile.href?" sourceBoxes":" anon "), sourceBox);
 
         return sourceBox;
     },
@@ -2594,7 +2577,7 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
     showSourceFile: function(sourceFile)
     {
         var sourceBox = this.getSourceBoxBySourceFile(sourceFile);
-        if (FBTrace.DBG_SOURCEFILES)                                                                                                /*@explore*/
+        if (FBTrace.DBG_SOURCEFILES)
             FBTrace.sysout("firebug.showSourceFile: "+sourceFile, sourceBox);
         if (!sourceBox)
         {
@@ -2972,14 +2955,13 @@ Firebug.ActivableModule = extend(Firebug.Module,
     initialize: function()
     {
         this.dependents = [];
+        this.disabledPanelPage = new Firebug.DisabledPanelPage(this);
 
         Firebug.Module.initialize.apply(this, arguments);
     },
 
     initializeUI: function(detachArgs)
     {
-        this.disabledPanelPage = new Firebug.DisabledPanelPage(this);
-
         Firebug.registerUIListener(this);  // we listen for showUI/hideUI for panel activation
 
         this.updateTab(null);
@@ -3078,14 +3060,14 @@ Firebug.ActivableModule = extend(Firebug.Module,
 
     showUI: function(browser, context)  // Firebug is opened, in browser or detached
     {
-        if (FBTrace.DBG_PANELS)
+        if (FBTrace.DBG_PANELS || FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("Firebug.showUI; " + this.panelName + ", " +
                 (context ? context.getName() : "No Context"));
     },
 
     hideUI: function(browser, context)  // Firebug closes, either in browser or detached.
     {
-        if (FBTrace.DBG_PANELS)
+        if (FBTrace.DBG_PANELS || FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("Firebug.hideUI; " + this.panelName + ", " +
                 (context ? context.getName() : "No Context"));
     },
@@ -3359,11 +3341,14 @@ Firebug.URLSelector =
         if (this.allPagesActivation == "off")
             return false;
 
+        if (userCommands)
+            return true;
+
         try
         {
             var uri = makeURI(normalizeURL(url));
             var hasAnnotation = this.annotationSvc.pageHasAnnotation(uri, this.annotationName);
-            if (FBTrace.DBG_WINDOWS)
+            if (FBTrace.DBG_ACTIVATION)
                 FBTrace.sysout("shouldCreateContext hasAnnotation "+hasAnnotation+" for "+uri.spec);
 
             if (hasAnnotation)
@@ -3374,13 +3359,10 @@ Firebug.URLSelector =
             {
                 if (this.allPagesActivation == "on")
                 {
-                    browser.showFirebug = true;
                     if (FBTrace.DBG_WINDOWS)
                         FBTrace.sysout("shouldCreateContext allPagesActivation "+this.allPagesActivation);
                     return true;
                 }
-
-                delete browser.showDetached;
 
                 if (browser.FirebugLink) // then TabWatcher found a connection
                 {
@@ -3389,13 +3371,16 @@ Firebug.URLSelector =
                     if (dstURI.equals(uri)) // and it matches us now
                     {
                         var srcURI = makeURI(normalizeURL(browser.FirebugLink.src.spec));
-                        hasAnnotation = this.annotationSvc.pageHasAnnotation(srcURI, this.annotationName);
-                        if (hasAnnotation)
-                            return this.checkAnnotation(browser, srcURI);
+                        if (dstURI.host == srcURI.host) // and it's on the same domain
+                        {
+                            hasAnnotation = this.annotationSvc.pageHasAnnotation(srcURI, this.annotationName);
+                            if (hasAnnotation) // and the source page was annotated.
+                                return this.checkAnnotation(browser, srcURI);
+                        }
                     }
                     else
                     {
-                        if (FBTrace.DBG_WINDOWS)
+                        if (FBTrace.DBG_ACTIVATION)
                             FBTrace.sysout("shouldCreateContext FirebugLink does not match "+uri.spec, browser.FirebugLink);
                     }
                 }
@@ -3414,17 +3399,13 @@ Firebug.URLSelector =
     {
         var annotation = this.annotationSvc.getPageAnnotation(uri, this.annotationName);
 
-        if (FBTrace.DBG_WINDOWS)
+        if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("shouldCreateContext read back annotation "+annotation+" for uri "+uri.spec);
-
-        delete browser.showFirebug;
 
         if ((this.allPagesActivation != "on") && (annotation.indexOf("closed") > 0)) // then the user closed Firebug on this page last time
             return false; // annotated as 'closed', don't create
         else
-            browser.showFirebug = true;  // mark to debug this page
-
-        return true;    // annotated, createContext
+            return true;    // annotated, createContext
     },
 
     shouldShowContext: function(context)
@@ -3440,7 +3421,7 @@ Firebug.URLSelector =
         var uri = makeURI(normalizeURL(browser.currentURI.spec));
         this.annotationSvc.setPageAnnotation(uri, this.annotationName, annotation, null, this.annotationSvc.EXPIRE_WITH_HISTORY);
 
-        if (FBTrace.DBG_WINDOWS)
+        if (FBTrace.DBG_ACTIVATION)
         {
             if (!this.annotationSvc.pageHasAnnotation(uri, this.annotationName))
                 FBTrace.sysout("nsIAnnotationService FAILS for "+uri.spec);
@@ -3448,13 +3429,22 @@ Firebug.URLSelector =
         }
     },
 
-    unwatchBrowser: function(browser)  // Firebug closes in browser
+    unwatchBrowser: function(browser, userCommands)  // Firebug closes in browser
     {
         var uri  = makeURI(normalizeURL(browser.currentURI.spec));
-        this.annotationSvc.removePageAnnotation(uri, this.annotationName); // unmark this URI
 
-        if (FBTrace.DBG_WINDOWS)
-            FBTrace.sysout("Firebug.URLSelector.unwatchBrowser untagged "+uri.spec);
+        if (userCommands)  // then mark to not open virally.
+        {
+            var annotation = "firebugged.closed";
+            this.annotationSvc.setPageAnnotation(uri, this.annotationName, annotation, null, this.annotationSvc.EXPIRE_WITH_HISTORY);
+        }
+        else
+        {
+            this.annotationSvc.removePageAnnotation(uri, this.annotationName); // unmark this URI
+
+            if (FBTrace.DBG_ACTIVATION)
+                FBTrace.sysout("Firebug.URLSelector.unwatchBrowser untagged "+uri.spec);
+        }
     },
 
     clearAll: function()
@@ -3466,7 +3456,7 @@ Firebug.URLSelector =
         {
             var uri = uris[i];
             this.annotationSvc.removePageAnnotation(uri, this.annotationName); // unmark this URI
-            if (FBTrace.DBG_WINDOWS)
+            if (FBTrace.DBG_ACTIVATION)
                 FBTrace.sysout("Firebug.URLSelector.clearAll untagged "+uri.spec);
         }
     },

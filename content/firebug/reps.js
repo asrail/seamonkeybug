@@ -1040,6 +1040,13 @@ this.SourceLink = domplate(Firebug.Rep,
         }
         else if (sourceLink.type == "css")
         {
+            // If an object is defined, treat it as the highest priority for
+            // inspect actions
+            if (sourceLink.object) {
+                context.chrome.select(sourceLink.object);
+                return;
+            }
+
             var stylesheet = getStyleSheetByHref(sourceLink.href, context);
             if (stylesheet)
             {
@@ -1460,7 +1467,7 @@ this.SourceText = domplate(Firebug.Rep,
         DIV(
             FOR("line", "$object|lineIterator",
                 DIV({class: "sourceRow", role : "presentation"},
-                    SPAN({class: "sourceLine"}, "$line.lineNo"),
+                    SPAN({class: "sourceLine", role : "presentation"}, "$line.lineNo"),
                     SPAN({class: "sourceRowText", role : "presentation"}, "$line.text")
                 )
             )
