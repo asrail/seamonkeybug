@@ -116,6 +116,16 @@ top.FirebugChrome =
         browser2.addEventListener("load", browser2Loaded, true);
 
         window.addEventListener("blur", onBlur, true);
+
+        // Initialize Firebug Tools & Firebug Icon menus.
+        var firebugMenuPopup = $("fbFirebugMenuPopup");
+        var toolsMenu = $("menu_firebug");
+        if (toolsMenu)
+            toolsMenu.appendChild(firebugMenuPopup.cloneNode(true));
+
+        var iconMenu = $("fbFirebugMenu");
+        if (iconMenu)
+            iconMenu.appendChild(firebugMenuPopup.cloneNode(true));
     },
 
     /**
@@ -217,23 +227,29 @@ top.FirebugChrome =
 
         if (inDetachedScope)  // then we are initializing in external window
         {
-            Firebug.setChrome(this); // 1.4
+            Firebug.setChrome(this, "detached"); // 1.4
 
             browser.originalChrome = browser.chrome; // 1.3
             browser.chrome = this;
 
+            Firebug.showContext(browser, context);
+
             if (FBTrace.DBG_WINDOWS)
-                FBTrace.sysout("attachBrowser inDetachedScope and browser.detached, browser.chrome.window: "+browser.chrome.window.location);
+                FBTrace.sysout("attachBrowser inDetachedScope in browser.chrome.window: "+browser.chrome.window.location);
         }
 
     },
 
     detachBrowser: function(browser)
     {
-        Firebug.setChrome(Firebug.originalChrome);
+        var detachedChrome = Firebug.chrome;
+        Firebug.setChrome(Firebug.originalChrome, "none");
         Firebug.closeDetachedWindow(true);
 
-        browser.chrome = browser.originalChrome;  // 1.3
+        // when we are done here the window.closed will be true so we don't want to hang on to the ref.
+        detachedChrome.window = "This is detached chrome!";
+
+        browser.chrome = Firebug.originalChrome;  // 1.3
         delete browser.originalChrome;
     },
 
@@ -816,6 +832,7 @@ top.FirebugChrome =
     hideUI: function(browser, context)  // called when the Firebug UI comes down; context may be null
     {
     },
+
     //* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
     onOptionsShowing: function(popup)

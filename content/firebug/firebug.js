@@ -146,7 +146,7 @@ top.Firebug =
     panelTypes: panelTypes,
     reps: reps,
     prefDomain: "extensions.firebug",
-    servicePrefDomain: "extensions.firebug-service",
+    servicePrefDomain: "extensions.firebug.service",
 
     stringCropLength: 80,
 
@@ -240,7 +240,7 @@ top.Firebug =
             "menu_enablePanels", "menu_disablePanels",
             "fbCommandLine", "fbFirebugMenu", "fbLargeCommandLine", "menu_customizeShortcuts",
             "menu_enableA11y", "fbContinueButton", "fbBreakOnNextButton",
-            "fbMinimizeButton"];
+            "fbMinimizeButton", "FirebugMenu_Sites"];
 
         var tooltipTextElements = ["fbContinueButton", "fbBreakOnNextButton", "fbMinimizeButton"];
         for (var i=0; i<elements.length; i++)
@@ -920,11 +920,11 @@ top.Firebug =
         if (FBTrace.DBG_WINDOWS || FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("showBar("+show+") for browser "+browser.currentURI.spec+" FirebugContext "+FirebugContext);
 
-        var shouldShow = show && !browser.detached;
+        var shouldShow = show && !Firebug.isDetached();
         contentBox.setAttribute("collapsed", !shouldShow);
         contentSplitter.setAttribute("collapsed", !shouldShow);
         toggleCommand.setAttribute("checked", !!shouldShow);
-        detachCommand.setAttribute("checked", !!browser.detached);
+        detachCommand.setAttribute("checked", Firebug.isDetached());
         this.showKeys(shouldShow);
 
         dispatch(uiListeners, show ? "showUI" : "hideUI", [browser, FirebugContext]);
@@ -945,11 +945,6 @@ top.Firebug =
         var keys = this.fbOnlyKeys;
         for (var i = 0; keys && (i < keys.length); i++)
             keys[i].setAttribute("disabled", !!shouldShow);
-    },
-
-    customizeShortcuts: function()  // XXXjjb a better place would be Firebug.shortcutsModel
-    {
-        window.openDialog("chrome://firebug/content/customizeShortcuts.xul", "", "chrome,centerscreen,dialog,modal,resizable=yes");
     },
 
     closeFirebug: function(userCommand)
@@ -1050,7 +1045,6 @@ top.Firebug =
 
     closeDetachedWindow: function(userCommands)
     {
-        Firebug.setPlacement("none");
         Firebug.showBar(false);
 
         if (FirebugContext)
@@ -1060,9 +1054,10 @@ top.Firebug =
         Firebug.resetTooltip();
     },
 
-    setChrome: function(newChrome)
+    setChrome: function(newChrome, newPlacement)
     {
         Firebug.chrome = newChrome;
+        Firebug.setPlacement(newPlacement);  // This should be the only setPlacement call with "detached"
 
         // reattach all contexts to the new chrome
         // This is a hack to allow context.chrome to work for now.
@@ -1076,19 +1071,13 @@ top.Firebug =
             }
             Firebug.reattachContext(context.browser, context);
         });
-
-        if (FirebugContext)
-        {
-            var browser = FirebugChrome.getCurrentBrowser();
-            Firebug.showContext(browser, FirebugContext);
-        }
     },
 
     detachBar: function(context)
     {
         if (!context)
         {
-            var browser = FirebugChrome.getCurrentBrowser();
+            var browser = Firebug.chrome.getCurrentBrowser();
             var created = TabWatcher.watchBrowser(browser);  // create a context for this page
             if (!created)
             {
@@ -1099,41 +1088,26 @@ top.Firebug =
             context = TabWatcher.getContextByWindow(browser.contentWindow);
         }
 
-        var browser = context.browser;
-
-        if (!browser.chrome)
+        if (Firebug.isDetached())  // can be set true attachBrowser
         {
-            if (FBTrace.DBG_ERRORS)
-                FBTrace.sysout("Firebug.detachBar no browser.chrome for context "+context.getName());
+            Firebug.chrome.focus();
             return null;
         }
 
-        if (Firebug.isDetached())  // can be set true attachBrowser
-        {
-            browser.chrome.focus();
-        }
-        else
-        {
-            Firebug.setPlacement("detached");
+        if (FBTrace.DBG_WINDOWS)
+            FBTrace.sysout("Firebug.detachBar opening firebug.xul for context "+context.getName() );
 
-            if (FBTrace.DBG_WINDOWS)
-                FBTrace.sysout("Firebug.detachBar opening firebug.xul for context "+context.getName() );
+        this.showBar(false);  // don't show in browser.xul now
 
-            var args = {
-                FBL: FBL,
-                Firebug: this,
-                browser: browser,
-                context: context
-            };
-            var win = openWindow("Firebug", "chrome://firebug/content/firebug.xul", "", args);
+        var args = {
+            FBL: FBL,
+            Firebug: this,
+            browser: context.browser,
+            context: context
+        };
+        var win = openWindow("Firebug", "chrome://firebug/content/firebug.xul", "", args);
 
-            detachCommand.setAttribute("checked", true);
-            FirebugChrome.clearPanels();
-            this.showBar(false);  // don't show in browser now
-            return win;
-        }
-
-        return null;
+        return win;
     },
 
     syncBar: function()  // show firebug if we should
@@ -1346,8 +1320,6 @@ top.Firebug =
 
     reattachContext: function(browser, context)
     {
-        TabWatcher.watchBrowser(browser);  // re-watch browser not that we are detached or reattached
-
         dispatch(modules, "reattachContext", [browser, context]);
     },
 
@@ -1538,7 +1510,7 @@ top.Firebug =
     setPlacement: function(toPlacement)
     {
         if (FBTrace.DBG_ACTIVATION)
-            FBTrace.sysout("Firebug.setPlacement from "+Firebug.getPlacement()+" to "+toPlacement);
+            FBTrace.sysout("Firebug.setPlacement from "+Firebug.getPlacement()+" to "+toPlacement+" with chrome "+Firebug.chrome.window.location);
 
         for (Firebug.placement = 0; Firebug.placement < Firebug.placements.length; Firebug.placement++)
         {
@@ -1569,9 +1541,7 @@ top.Firebug =
 
         this.updateActiveContexts(context); // a newly created context is active
 
-        context.browser.chrome.setFirebugContext(context); // a newly created context becomes the default for the view
         Firebug.chrome.setFirebugContext(context); // a newly created context becomes the default for the view
-
 
         if (deadWindowTimeout)
             this.rescueWindow(context.browser); // if there is already a window, clear showDetached.
@@ -1604,8 +1574,8 @@ top.Firebug =
         }
 
         this.updateActiveContexts(context);
-        if (context)
-            context.browser.chrome.setFirebugContext(context); // the context becomes the default for its view
+
+        Firebug.chrome.setFirebugContext(context); // the context becomes the default for its view
 
         dispatch(modules, "showContext", [browser, context]);  // tell modules we may show UI
 
@@ -1628,9 +1598,18 @@ top.Firebug =
                 Firebug.chrome.window.document.title = $STR("Firebug - inactive for selected Firefox tab");
             }
         }
-        else
+        if (Firebug.isClosed())
         {
-            this.syncBar();  // either showUI based on context or hideUI without context,
+            if (context)
+            {
+                Firebug.setPlacement("inBrowser");
+                this.showBar(true);
+            }
+            // else should not happen
+        }
+        else  // inBrowser
+        {
+            this.showBar(context?true:false);
         }
 
     },
@@ -1640,8 +1619,6 @@ top.Firebug =
         Firebug.updateActiveContexts(null);
         if (TabWatcher.contexts.length < 1)  // TODO shutdown ?
             Firebug.setPlacement("none");
-
-        delete browser.showFirebug; // ok we are done debugging
     },
 
     // Either a top level or a frame, (interior window) for an exist context is seen by the tabWatcher.
@@ -1984,36 +1961,13 @@ Firebug.Panel =
     {
         try
         {
-            // XXXjjb this is bug. Somehow the panel context is not FirebugContext.
-            // xxxHonza: this should be fixed, the problem was that selectedPanel was
-            // removed from panelBar (binding) after the context was destroyed.
-            // So, the panel.hide() method used invalid context object.
-            // The selected panel is now removed with in Firebug.destroyContext();
-            if (!this.context.browser)
-            {
-                if (FBTrace.DBG_ERRORS)
-                    FBTrace.sysout("firebug.Panel showToolbarButtons this.context ("+this.context.getName()+") has no browser in window "+window.location+" this.context", this.context);
-                return;
-            }
-
             var buttons = Firebug.chrome.$(buttonsId);
-            if (buttons)
-            {
-                collapse(buttons, !show);
-            }
-            else
-            {
-                if (FBTrace.DBG_ERRORS)
-                    FBTrace.sysout("showToolBarButtons failed to find buttons for "+buttonsId, this.context.browser.chrome);
-            }
+            collapse(buttons, !show);
         }
         catch (exc)
         {
             if (FBTrace.DBG_ERRORS)
-            {
-                FBTrace.dumpProperties("firebug.Panel showToolbarButtons FAILS", exc);
-                if (!this.context.browser)FBTrace.dumpStack("firebug.Panel showToolbarButtons no browser");
-            }
+                FBTrace.sysout("firebug.Panel showToolbarButtons FAILS", exc);
         }
     },
 
@@ -2523,7 +2477,20 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         var newTopLine = Math.round(sourceBox.scrollTop/scrollStep);
         var newBottomLine = Math.round((sourceBox.scrollTop + panelHeight)/scrollStep);
 
-        sourceBox.viewableLines = newBottomLine - newTopLine;  // eg 17
+        var viewableLines = newBottomLine - newTopLine;  // eg 17
+
+        if (viewableLines == sourceBox.viewableLines)  // then the size has not changed
+        {
+            if (newTopLine == sourceBox.firstViewableLine)  // then the top is also the same
+            {
+                if (FBTrace.DBG_SOURCEFILES)
+                    FBTrace.sysout("reView scrollTop: "+scrollTop+" no change to viewableLines "+viewableLines, sourceBox);
+
+                return null;
+            }
+        }
+
+        sourceBox.viewableLines = viewableLines;
 
         var halfViewableLines = Math.round(sourceBox.viewableLines/2.0);  //eg 8
         sourceBox.halfViewableLines = halfViewableLines;
@@ -2638,7 +2605,9 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
 
             if (!skipScrolling)
             {
-                var halfViewableLines = this.selectedSourceBox.halfViewableLines ? this.selectedSourceBox.halfViewableLines : 10;
+                var halfViewableLines = 10;
+                if (this.selectedSourceBox.halfViewableLines > 0)
+                    halfViewableLines = this.selectedSourceBox.halfViewableLines;
                 if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: scrollTo "+lineNo+" halfViewableLines:"+halfViewableLines+" lineHeight: "+this.selectedSourceBox.lineHeight);
                 var newScrollTop = (lineNo - halfViewableLines) * this.selectedSourceBox.lineHeight
                 if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: newScrollTop "+newScrollTop);
@@ -2807,8 +2776,8 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         {
             if (FBTrace.DBG_SOURCEFILES)
                 FBTrace.sysout("resizer will clear viewable lines, event:", event);
-            delete this.selectedSourceBox.viewableLines;  // force recompute of viewport capacity
-            delete this.selectedSourceBox.halfViewableLines;
+            //delete this.selectedSourceBox.viewableLines;  // force recompute of viewport capacity
+            //delete this.selectedSourceBox.halfViewableLines;
             delete this.lastScrollTop;
             this.reView(this.selectedSourceBox);
         }
@@ -3375,7 +3344,12 @@ Firebug.URLSelector =
                         {
                             hasAnnotation = this.annotationSvc.pageHasAnnotation(srcURI, this.annotationName);
                             if (hasAnnotation) // and the source page was annotated.
-                                return this.checkAnnotation(browser, srcURI);
+                            {
+                                var srcShow = this.checkAnnotation(browser, srcURI);
+                                if (srcShow)  // and the source annotation said show it
+                                    this.watchBrowser(browser);  // so we show dst as well.
+                                return srcShow;
+                            }
                         }
                     }
                     else
