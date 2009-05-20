@@ -206,7 +206,8 @@ Firebug.NetMonitor = extend(Firebug.ActivableModule,
 
         Firebug.ActivableModule.initialize.apply(this, arguments);
 
-        Firebug.TraceModule.addListener(this.TraceListener);
+        if (Firebug.TraceModule)
+            Firebug.TraceModule.addListener(this.TraceListener);
 
         // HTTP observer must be registered now (and not in monitorContext, since if a
         // page is opened in a new tab the top document request would be missed otherwise.
@@ -216,7 +217,8 @@ Firebug.NetMonitor = extend(Firebug.ActivableModule,
     shutdown: function()
     {
         prefs.removeObserver(Firebug.prefDomain, this, false);
-        Firebug.TraceModule.removeListener(this.TraceListener);
+        if (Firebug.TraceModule)
+            Firebug.TraceModule.removeListener(this.TraceListener);
         HttpObserver.unregisterObserver();
     },
 
@@ -681,7 +683,8 @@ NetPanel.prototype = domplate(Firebug.ActivablePanel,
 
     openResponseInTab: function(file)
     {
-        try {
+        try
+        {
             var response = getResponseText(file, this.context);
             var inputStream = getInputStreamFromString(response);
             var stream = CCIN("@mozilla.org/binaryinputstream;1", "nsIBinaryInputStream");
@@ -1659,6 +1662,32 @@ var NetLimit = Firebug.NetMonitor.NetLimit;
 
 // ************************************************************************************************
 
+Firebug.NetMonitor.ResponseSizeLimit = domplate(Firebug.Rep,
+{
+    tag:
+        DIV({"class": "netInfoResponseSizeLimit"},
+            SPAN("$object.beforeLink"),
+            A({"class": "objectLink", onclick: "$onClickLink"},
+                "$object.linkText"
+            ),
+            SPAN("$object.afterLink")
+        ),
+
+    reLink: /^(.*)<a>(.*)<\/a>(.*$)/,
+    append: function(obj, parent)
+    {
+        var m = obj.text.match(this.reLink);
+        return this.tag.append({onClickLink: obj.onClickLink,
+            object: {
+            beforeLink: m[1],
+            linkText: m[2],
+            afterLink: m[3],
+        }}, parent, this);
+    }
+});
+
+// ************************************************************************************************
+
 function NetProgress(context)
 {
     if (FBTrace.DBG_NET)
@@ -1722,7 +1751,6 @@ function NetProgress(context)
         this.windows = [];
 
         queue = [];
-        requestQueue = [];
     };
 
     this.cacheListener = new NetCacheListener(this);
@@ -1775,7 +1803,7 @@ NetProgress.prototype =
 
     respondedFile: function respondedFile(request, time, info)
     {
-        dispatch(Firebug.NetMonitor.fbListeners, "onExamineResponse", [context, request]);
+        dispatch(Firebug.NetMonitor.fbListeners, "onExamineResponse", [this.context, request]);
 
         var file = this.getRequestFile(request);
         if (file)
@@ -3073,12 +3101,31 @@ Firebug.NetMonitor.NetInfoBody = domplate(Firebug.Rep, new Firebug.Listener(),
 
     setResponseText: function(file, netInfoBox, responseTextBox, context)
     {
-        // Get response text.
+        // Get response text and make sure it doesn't exceed the max limit.
         var text = getResponseText(file, context);
+        var limit = Firebug.getPref(Firebug.prefDomain, "net.displayedResponseLimit") + 15;
+        var limitReached = text.length > limit;
+        if (limitReached)
+            text = text.substr(0, limit) + "...";
+
+        // Insert the response into the UI.
         if (text)
             insertWrappedText(text, responseTextBox);
         else
             insertWrappedText("", responseTextBox);
+
+        // Append a message iforming the user that the response isn't fully displayed.
+        if (limitReached)
+        {
+            var object = {
+                text: $STR("net.responseSizeLimitMessage"),
+                onClickLink: function() {
+                    var panel = context.getPanel("net", true);
+                    panel.openResponseInTab(file);
+                }
+            };
+            Firebug.NetMonitor.ResponseSizeLimit.append(object, responseTextBox);
+        }
 
         netInfoBox.responsePresented = true;
 
@@ -3266,7 +3313,7 @@ var HttpObserver =
             if (!Firebug.URLSelector.shouldCreateContext(browser, name, null))
             {
                 if (FBTrace.DBG_NET)
-                    FBTrace.sysout("net.onModifyRequest; URLSelector says don't create temp context.")
+                    FBTrace.sysout("net.onModifyRequest; URLSelector says don't create temp context.");
                 return;
             }
 

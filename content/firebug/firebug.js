@@ -10,7 +10,6 @@ const Ci = Components.interfaces;
 
 const nsIPrefBranch = Ci.nsIPrefBranch;
 const nsIPrefBranch2 = Ci.nsIPrefBranch2;
-const nsIFireBugClient = Ci.nsIFireBugClient;
 const nsISupports = Ci.nsISupports;
 const nsIFile = Ci.nsIFile;
 const nsILocalFile = Ci.nsILocalFile;
@@ -1427,7 +1426,7 @@ top.Firebug =
 
     QueryInterface : function(iid)
     {
-        if (iid.equals(nsIFireBugClient) || iid.equals(nsISupports))
+        if (iid.equals(nsISupports))
         {
             return this;
         }
@@ -1554,7 +1553,7 @@ top.Firebug =
             if(!this.hadFirstContext)  // then we need to enable the panels iff the prefs say so
             {
                 this.hadFirstContext = true;
-                Firebug.ModuleManager.obeyPrefs();
+                Firebug.ModuleManager.obeyPrefs(context);
             }
             if (Firebug.getSuspended())
                 Firebug.resume();  // This will cause onResumeFirebug for every context including this one.
@@ -1903,11 +1902,6 @@ Firebug.Panel =
         this.destroyNode();
     },
 
-    detach: function(oldChrome, newChrome)
-    {
-        this.lastScrollTop = this.panelNode.scrollTop;
-    },
-
     reattach: function(doc)  // this is how a panel in one window reappears in another window; lazy called
     {
         this.document = doc;
@@ -1917,8 +1911,6 @@ Firebug.Panel =
             this.panelNode = doc.adoptNode(this.panelNode, true);
             this.panelNode.ownerPanel = this;
             doc.body.appendChild(this.panelNode);
-            this.panelNode.scrollTop = this.lastScrollTop;
-            delete this.lastScrollTop;
         }
     },
 
@@ -2220,7 +2212,7 @@ Firebug.ActivablePanel = extend(Firebug.Panel,
 
         var tab = this.getTab();
         if (tab)
-            tab.setAttribute('aria-disabled', 'false');
+            tab.setAttribute('aria-label', tab.textContent);
 
         // The panel was just enabled so, hide the disable message. Notice that
         // displaying this page replaces content of the panel.
@@ -2229,7 +2221,7 @@ Firebug.ActivablePanel = extend(Firebug.Panel,
         // xxxHonza: now I think this is the correct place to call Panel.show
         // If the enabled panel is currently visible, show the content.
         // It's necessary to update the toolbar.
-        if (context.panelName == this.name)
+        if (this.context.panelName == this.name)
         {
             var state = Firebug.getPanelState(this);
             this.show(state);
@@ -2243,7 +2235,7 @@ Firebug.ActivablePanel = extend(Firebug.Panel,
 
         var tab = this.getTab();
         if (tab)
-            tab.setAttribute('aria-disabled', 'true');
+            tab.setAttribute('aria-label', tab.getAttribute('label') + " (inactive panel)");
 
         // The panel was disabled so, show the disabled page. This page also replaces the
         // old content so, the panel is fresh empty after it's enabled again.
@@ -2422,8 +2414,6 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
 
         sourceBox.viewport = getChildByClass(sourceBox, 'sourceViewport');
 
-        delete this.lastScrollTop;
-
         if (sourceFile.href)
             this.sourceBoxes[sourceFile.href] = sourceBox;
         else
@@ -2457,7 +2447,7 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         }
     },
 
-    setViewableLines: function(sourceBox)  // called only by buildViewAround
+    getViewableLines: function(sourceBox)
     {
         var scrollStep = sourceBox.lineHeight;
         if (!scrollStep || scrollStep < 1)
@@ -2468,14 +2458,22 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
             if (!scrollStep || scrollStep < 1)
             {
                 if (FBTrace.DBG_SOURCEFILES)
-                    FBTrace.sysout("reView scrollTop: "+scrollTop+" no scrollStep and could not set it", sourceBox);
+                    FBTrace.sysout("getViewableLines scrollTop: "+scrollTop+" no scrollStep and could not set it", sourceBox);
                 return null;
             }
         }
 
+        var scrollTop = sourceBox.scrollTop;
+        if (sourceBox.newScrollTop)
+        {
+            // XXXjjb for some reason sourceBox.scrollTop is being cleared, so we have to use our own value
+            scrollTop = sourceBox.newScrollTop;
+            delete sourceBox.newScrollTop;
+        }
+
         var panelHeight = this.panelNode.clientHeight;
-        var newTopLine = Math.round(sourceBox.scrollTop/scrollStep);
-        var newBottomLine = Math.round((sourceBox.scrollTop + panelHeight)/scrollStep);
+        var newTopLine = Math.round(scrollTop/scrollStep);
+        var newBottomLine = Math.round((scrollTop + panelHeight)/scrollStep);
 
         var viewableLines = newBottomLine - newTopLine;  // eg 17
 
@@ -2484,13 +2482,22 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
             if (newTopLine == sourceBox.firstViewableLine)  // then the top is also the same
             {
                 if (FBTrace.DBG_SOURCEFILES)
-                    FBTrace.sysout("reView scrollTop: "+scrollTop+" no change to viewableLines "+viewableLines, sourceBox);
+                    FBTrace.sysout("getViewableLines scrollTop: "+scrollTop+" no change to viewableLines "+viewableLines, sourceBox);
 
                 return null;
             }
         }
+        if (FBTrace.DBG_SOURCEFILES)
+            FBTrace.sysout("getViewableLines clientHeight "+panelHeight+" sourceBox.lineHeight "+sourceBox.lineHeight+" viewableLines:"+viewableLines+"\n");
 
-        sourceBox.viewableLines = viewableLines;
+        return {top: newTopLine, bottom: newBottomLine};
+    },
+
+    setViewableLines: function(sourceBox, lines)  // called only by buildViewAround
+    {
+        var newTopLine = lines.top;
+        var newBottomLine = lines.bottom;
+        sourceBox.viewableLines = newBottomLine - newTopLine;
 
         var halfViewableLines = Math.round(sourceBox.viewableLines/2.0);  //eg 8
         sourceBox.halfViewableLines = halfViewableLines;
@@ -2498,10 +2505,7 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         var newCenterLine = newTopLine + halfViewableLines;
 
         if (FBTrace.DBG_SOURCEFILES)
-        {
-            FBTrace.sysout("setViewableLines scrollTop: "+sourceBox.scrollTop+" newTopLine: "+newTopLine+" newBottomLine: "+newBottomLine+"\n");
-            FBTrace.sysout("setViewableLines clientHeight "+panelHeight+" sourceBox.lineHeight "+sourceBox.lineHeight+" viewableLines:"+ sourceBox.viewableLines+"\n");
-        }
+            FBTrace.sysout("setViewableLines scrollTop: "+sourceBox.scrollTop+" newTopLine: "+newTopLine+" newBottomLine: "+newBottomLine+" for "+sourceBox.repObject.href+"\n");
 
         return newCenterLine;
     },
@@ -2551,7 +2555,13 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
             sourceBox = this.createSourceBox(sourceFile, this.getDecorator());
             this.panelNode.appendChild(sourceBox);
             this.setSourceBoxLineSizes(sourceBox);
-            this.buildViewAround(sourceBox);
+
+            var viewableLines = this.getViewableLines(sourceBox);
+
+            if (!viewableLines)
+                return;
+
+            this.buildViewAround(sourceBox, viewableLines);
         }
 
         this.showSourceBox(sourceBox);
@@ -2608,10 +2618,10 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
                 var halfViewableLines = 10;
                 if (this.selectedSourceBox.halfViewableLines > 0)
                     halfViewableLines = this.selectedSourceBox.halfViewableLines;
-                if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: scrollTo "+lineNo+" halfViewableLines:"+halfViewableLines+" lineHeight: "+this.selectedSourceBox.lineHeight);
-                var newScrollTop = (lineNo - halfViewableLines) * this.selectedSourceBox.lineHeight
-                if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: newScrollTop "+newScrollTop);
-                this.selectedSourceBox.scrollTop = newScrollTop; // *may* cause scrolling
+                if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: scrollTo "+lineNo+" halfViewableLines:"+halfViewableLines+" lineHeight: "+this.selectedSourceBox.lineHeight+" for "+this.selectedSourceBox.repObject.href);
+                this.selectedSourceBox.newScrollTop = (lineNo - halfViewableLines) * this.selectedSourceBox.lineHeight
+                if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: newScrollTop "+this.selectedSourceBox.newScrollTop+" for "+this.selectedSourceBox.repObject.href);
+                this.selectedSourceBox.scrollTop = this.selectedSourceBox.newScrollTop; // *may* cause scrolling
                 if (FBTrace.DBG_SOURCEFILES) FBTrace.sysout("SourceBoxPanel.scrollTimeout: scrollTo "+lineNo+" scrollTop:"+this.selectedSourceBox.scrollTop+ " lineHeight: "+this.selectedSourceBox.lineHeight);
             }
 
@@ -2644,19 +2654,9 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
     },
 
     // should only be called onScroll
-    buildViewAround: function(sourceBox)  // defaults to first viewable lines
+    buildViewAround: function(sourceBox, lines)  // defaults to first viewable lines
     {
-        var view = sourceBox.viewport;
-        if (!view)
-        {
-            if (FBTrace.DBG_ERRORS)
-                FBTrace.dumpProperties("buildViewAround got no viewport form sourceBox", sourceBox);
-            return;
-        }
-
-         var lineNo = this.setViewableLines(sourceBox);
-         if (!lineNo)
-             return;
+        var lineNo = this.setViewableLines(sourceBox, lines);
 
         var topLine = 1; // will be view.firstChild
         if (lineNo)
@@ -2676,6 +2676,14 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
 
         // Zero-based childNode index in view for lineNo. 2544 - (2544 - 8) = 8 or 4 - 1 = 3
         var centralLineNumber = lineNo ? (lineNo - topLine) : -1;
+
+        var view = sourceBox.viewport;
+        if (!view)
+        {
+            if (FBTrace.DBG_ERRORS)
+                FBTrace.dumpProperties("buildViewAround got no viewport form sourceBox", sourceBox);
+            return;
+        }
 
         clearNode(view);
 
@@ -2699,8 +2707,9 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         sourceBox.lastViewableLine = bottomLine;
 
         appendScriptLines(sourceBox, topLine, bottomLine, view);
-        dispatch([Firebug.A11yModel], "onBeforeViewportChange", [this, link, this.lastScrollTop > sourceBox.scrollTop]);
-        this.lastScrollTop = sourceBox.scrollTop;  // prevent reView before sourceBoxDecoratorTimeout reset scrollTop
+
+        // XXXjjb TODO
+        dispatch([Firebug.A11yModel], "onBeforeViewportChange", [this, link, /* this.lastScrollTop > sourceBox.scrollTop*/true]);
 
         this.applyDecorator(sourceBox);
 
@@ -2751,21 +2760,12 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
 
     reView: function(sourceBox)  // called for all scroll events, including any time sourcebox.scrollTop is set
     {
-        var scrollTop = sourceBox.scrollTop;
+        var viewableLines = this.getViewableLines(sourceBox);
 
-        if (scrollTop == this.lastScrollTop)
-        {
-            if (FBTrace.DBG_SOURCEFILES)
-                FBTrace.sysout("reView no change to scrollTop ", sourceBox);
+        if (!viewableLines)
             return;
-        }
 
-        if (!this.lastScrollTop)
-            this.lastScrollTop = 0;
-
-        this.buildViewAround(sourceBox);
-
-        this.lastScrollTop = scrollTop;
+        this.buildViewAround(sourceBox, viewableLines);
     },
 
     resizer: function(event)
@@ -2775,10 +2775,8 @@ Firebug.SourceBoxPanel = extend( extend(Firebug.MeasureBox, Firebug.ActivablePan
         if (this.selectedSourceBox)
         {
             if (FBTrace.DBG_SOURCEFILES)
-                FBTrace.sysout("resizer will clear viewable lines, event:", event);
-            //delete this.selectedSourceBox.viewableLines;  // force recompute of viewport capacity
-            //delete this.selectedSourceBox.halfViewableLines;
-            delete this.lastScrollTop;
+                FBTrace.sysout("resizer event:", event);
+
             this.reView(this.selectedSourceBox);
         }
     },
@@ -3132,7 +3130,6 @@ Firebug.ActivableModule = extend(Firebug.Module,
         {
             tab.setModule(this);
             var enabled = this.isAlwaysEnabled();
-            tab.setAttribute('aria-disabled', enabled ? "false" : "true");
         }
     }
 });
@@ -3278,7 +3275,7 @@ Firebug.ModuleManager =
         );
     },
 
-    obeyPrefs: function()
+    obeyPrefs: function(context)
     {
         for (var i=0; i<activableModules.length; i++)
         {
@@ -3287,6 +3284,7 @@ Firebug.ModuleManager =
                 this.enableModule(module);
             else
                 this.disableModule(module);
+
             module.updateTab(context);
         }
     },

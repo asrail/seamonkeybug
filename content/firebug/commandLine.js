@@ -342,10 +342,17 @@ Firebug.CommandLine = extend(Firebug.Module,
         else
             Firebug.toggleBar(true);
 
-        Firebug.chrome.selectPanel("console");
+        if (context.panelName != "console")
+        {
+            Firebug.chrome.switchToPanel(context, "console");
 
-        var commandLine = getCommandLine(context);
-        setTimeout(function() { commandLine.select(); });
+            var commandLine = getCommandLine(context);
+            setTimeout(function() { commandLine.select(); });
+        }
+        else // then we are already on the console, toggle back
+        {
+            Firebug.chrome.unswitchToPanel(context, "console", true);
+        }
     },
 
     clear: function(context)
@@ -589,6 +596,13 @@ Firebug.CommandLine = extend(Firebug.Module,
 
     attachConsoleOnFocus: function()
     {
+        if (!FirebugContext)
+        {
+            if (FBTrace.DBG_ERRORS)
+                FBTrace.sysout("commandLine.attachConsoleOnFocus no FirebugContext");
+            return;
+        }
+
         // User has decided to use the command line, but the web page may not have the console if the page has no javascript
         if (Firebug.Console.isReadyElsePreparing(FirebugContext))
         {

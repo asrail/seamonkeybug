@@ -78,6 +78,7 @@ pref("extensions.firebug.netFilterCategory", "all");
 pref("extensions.firebug.collectHttpHeaders", true);
 pref("extensions.firebug.net.logLimit", 500);
 pref("extensions.firebug.net.enableSites", false);
+pref("extensions.firebug.net.displayedResponseLimit", 102400); // Maximum size limit for displayed responses [net, console panels].
 
 // Cache
 pref("extensions.firebug.cache.mimeTypes", ""); // list of additional cached mime-types separated by space.
@@ -135,20 +136,20 @@ pref("extensions.firebug.DBG_EDITOR", false);       // Inline editors           
 pref("extensions.firebug.DBG_SHORTCUTS", false);    // Keyboard shortcuts.                       /*@explore*/
 
 //Keyboard
-pref("extensions.firebug.key.shortcut.reenterCommand", "accel shift e");
+pref("extensions.firebug.key.shortcut.reenterCommand", "control shift e");
 pref("extensions.firebug.key.shortcut.toggleInspecting", "accel shift c");
 pref("extensions.firebug.key.shortcut.toggleProfiling", "accel shift p");
 pref("extensions.firebug.key.shortcut.focusCommandLine", "accel shift l");
 pref("extensions.firebug.key.shortcut.focusFirebugSearch", "accel shift k");
 pref("extensions.firebug.key.shortcut.focusWatchEditor", "accel shift n");
-pref("extensions.firebug.key.shortcut.focusLocation", "accel shift VK_SPACE");
-pref("extensions.firebug.key.shortcut.nextObject", "accel .");
-pref("extensions.firebug.key.shortcut.previousObject", "accel ,");
+pref("extensions.firebug.key.shortcut.focusLocation", "control shift VK_SPACE");
+pref("extensions.firebug.key.shortcut.nextObject", "control .");
+pref("extensions.firebug.key.shortcut.previousObject", "control ,");
 pref("extensions.firebug.key.shortcut.toggleFirebug", "VK_F12");
 pref("extensions.firebug.key.shortcut.detachFirebug", "accel VK_F12");
 pref("extensions.firebug.key.shortcut.leftFirebugTab", "accel shift VK_PAGE_UP");
 pref("extensions.firebug.key.shortcut.rightFirebugTab", "accel shift VK_PAGE_DOWN");
-pref("extensions.firebug.key.shortcut.previousFirebugTab", "accel `");
+pref("extensions.firebug.key.shortcut.previousFirebugTab", "control `");
 pref("extensions.firebug.key.shortcut.customizeFBKeys", "alt accel shift k");
 pref("extensions.firebug.key.shortcut.clearConsole", "accel shift r");
 pref("extensions.firebug.key.shortcut.openTraceConsole", "shift r");                             /*@explore*/
