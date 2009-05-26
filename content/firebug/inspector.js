@@ -31,13 +31,13 @@ Firebug.Inspector = extend(Firebug.Module,
 
     highlightObject: function(element, context, highlightType, boxFrame)
     {
-        if(context)
+        if(context && context.window.document)
         {
             context.window.document.addEventListener("mousemove", function(event)
-                {
+            {
                 mx = event.clientX;
                 my = event.clientY;
-                }, true);
+            }, true);
         }
 
         if (!element || !isElement(element) || !isVisible(element))
@@ -94,7 +94,7 @@ Firebug.Inspector = extend(Firebug.Module,
         this.inspecting = true;
         this.inspectingContext = context;
 
-        context.chrome.setGlobalAttribute("cmd_toggleInspecting", "checked", "true");
+        Firebug.chrome.setGlobalAttribute("cmd_toggleInspecting", "checked", "true");
         this.attachInspectListeners(context);
 
         var htmlPanel = Firebug.chrome.switchToPanel(context, "html");
@@ -135,8 +135,7 @@ Firebug.Inspector = extend(Firebug.Module,
         {
             this.inspectTimeout = context.setTimeout(function()
             {
-                if (context.chrome)
-                    context.chrome.select(node);
+                Firebug.chrome.select(node);
             }, inspectDelay);
         }
     },
@@ -158,7 +157,7 @@ Firebug.Inspector = extend(Firebug.Module,
         if (!waitForClick)
             this.detachClickInspectListeners(context.window);
 
-        context.chrome.setGlobalAttribute("cmd_toggleInspecting", "checked", "false");
+        Firebug.chrome.setGlobalAttribute("cmd_toggleInspecting", "checked", "false");
 
         this.inspecting = false;
 
@@ -175,10 +174,10 @@ Firebug.Inspector = extend(Firebug.Module,
         var node = this.inspectingNode;
 
         if (dir == "up")
-            target = this.inspectingContext.chrome.getNextObject();
+            target = Firebug.chrome.getNextObject();
         else if (dir == "down")
         {
-            target = this.inspectingContext.chrome.getNextObject(true);
+            target = Firebug.chrome.getNextObject(true);
             if (node && !target)
             {
                 if (node.contentDocument)
@@ -202,7 +201,7 @@ Firebug.Inspector = extend(Firebug.Module,
         if (!win || !win.document)
             return;
 
-        var chrome = context.chrome;
+        var chrome = Firebug.chrome;
 
         this.keyListeners =
         [
@@ -226,7 +225,7 @@ Firebug.Inspector = extend(Firebug.Module,
         if (!win || !win.document)
             return;
 
-        var chrome = context.chrome;
+        var chrome = Firebug.chrome;
 
         if (this.keyListeners)  // XXXjjb for some reason this is null some times.
         {
@@ -257,7 +256,7 @@ Firebug.Inspector = extend(Firebug.Module,
     onInspectingMouseOver: function(event)
     {
         if (FBTrace.DBG_INSPECT)
-           FBTrace.dumpEvent("onInspecting event", event);
+           FBTrace.sysout("onInspecting event", event);
         this.inspectNode(event.target);
         cancelEvent(event);
     },
@@ -265,7 +264,7 @@ Firebug.Inspector = extend(Firebug.Module,
     onInspectingMouseDown: function(event)
     {
         if (FBTrace.DBG_INSPECT)
-           FBTrace.dumpEvent("onInspecting event", event);
+           FBTrace.sysout("onInspecting event", event);
         this.stopInspecting(false, true);
         cancelEvent(event);
     },
@@ -273,7 +272,7 @@ Firebug.Inspector = extend(Firebug.Module,
     onInspectingClick: function(event)
     {
         if (FBTrace.DBG_INSPECT)
-            FBTrace.dumpEvent("onInspecting event", event);
+            FBTrace.sysout("onInspecting event", event);
         var win = event.currentTarget.defaultView;
         if (win)
         {
@@ -334,16 +333,11 @@ Firebug.Inspector = extend(Firebug.Module,
         if (this.inspecting)
             this.stopInspecting(true);
 
-        /*if (browser)
-        {
-            var disabled = !context || !context.loaded;
-            browser.chrome.setGlobalAttribute("menu_firebugInspect", "disabled", disabled);
-        }*/
     },
 
     showPanel: function(browser, panel)
     {
-        var chrome = browser.chrome;
+        var chrome = Firebug.chrome;
         var disabled = !panel || !panel.context.loaded;
         chrome.setGlobalAttribute("cmd_toggleInspecting", "disabled", disabled);
         //chrome.setGlobalAttribute("menu_firebugInspect", "disabled", disabled);
@@ -351,8 +345,8 @@ Firebug.Inspector = extend(Firebug.Module,
 
     loadedContext: function(context)
     {
-        context.chrome.setGlobalAttribute("cmd_toggleInspecting", "disabled", "false");
-        //context.chrome.setGlobalAttribute("menu_firebugInspect", "disabled", "false");
+        Firebug.chrome.setGlobalAttribute("cmd_toggleInspecting", "disabled", "false");
+        //Firebug.chrome.setGlobalAttribute("menu_firebugInspect", "disabled", "false");
     },
 
     updateOption: function(name, value)
@@ -471,7 +465,7 @@ function getImageMapHighlighter(context)
                     {
                         if(elts[i].getAttribute('usemap') == mapName)
                         {
-                            rect=elts[i].getBoundingClientRect();
+                            rect = getRectTRBLWH(elts[i], context);
 
                             if(multi)
                             {
@@ -511,7 +505,7 @@ function getImageMapHighlighter(context)
 
                     for(var j=0;j<images.length;j++)
                     {
-                        rect = getRectTRBLWH(images[j]);
+                        rect = getRectTRBLWH(images[j], context);
 
                         ctx.beginPath();
 
@@ -579,7 +573,7 @@ FrameHighlighter.prototype =
         if (element instanceof XULElement)
             return;
 
-        var rect = getRectTRBLWH(element),
+        var rect = getRectTRBLWH(element, context),
             x = rect.left,
             y = rect.top,
             w = rect.width,
@@ -634,7 +628,7 @@ FrameHighlighter.prototype =
                     catch(exc)
                     {
                         if (FBTrace.DBG_INSPECT)
-                            FBTrace.dumpProperties("inspector.FrameHighlighter.highlight FAILS", exc);
+                            FBTrace.sysout("inspector.FrameHighlighter.highlight FAILS", exc);
                     }
                 }
             }
@@ -706,7 +700,7 @@ PopupHighlighter.prototype =
         if (FBTrace.DBG_INSPECT)
         {
             FBTrace.sysout("PopupHighlighter for "+element.tagName, " at ("+element.boxObject.screenX+","+element.boxObject.screenY+")");
-            FBTrace.dumpProperties("PopupHighlighter popup=", popup);
+            FBTrace.sysout("PopupHighlighter popup=", popup);
         }
     },
 
@@ -752,7 +746,7 @@ BoxModelHighlighter.prototype =
                 return;
 
             var parentStyle = win.getComputedStyle(offsetParent, "");
-            var parentOffset = getRectTRBLWH(offsetParent);
+            var parentOffset = getRectTRBLWH(offsetParent, context);
             var parentX = parentOffset.left + parseInt(parentStyle.borderLeftWidth);
             var parentY = parentOffset.top + parseInt(parentStyle.borderTopWidth);
             var parentW = offsetParent.offsetWidth-1;
@@ -761,7 +755,7 @@ BoxModelHighlighter.prototype =
             var style = win.getComputedStyle(element, "");
             var styles = readBoxStyles(style);
 
-            var offset = getRectTRBLWH(element);
+            var offset = getRectTRBLWH(element, context);
             var x = offset.left - Math.abs(styles.marginLeft);
             var y = offset.top - Math.abs(styles.marginTop);
             var w = element.offsetWidth - (styles.paddingLeft + styles.paddingRight
@@ -907,7 +901,7 @@ BoxModelHighlighter.prototype =
         if (!context.boxModelHighlighter)
         {
             var doc = context.window.document;
-            if (FBTrace.DBG_ERRORS && !doc) FBTrace.dumpStack("inspector getNodes no document for window:"+window.location);
+            if (FBTrace.DBG_ERRORS && !doc) FBTrace.sysout("inspector getNodes no document for window:"+window.location);
 
             function createRuler(name)
             {

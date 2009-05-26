@@ -66,7 +66,7 @@ Firebug.CommandLine = extend(Firebug.Module,
         var win = targetWindow ? targetWindow : ( context.baseWindow ? context.baseWindow : context.window );
         if (!win)
         {
-            if (FBTrace.DBG_ERRORS) FBTrace.dumpStack("commandLine.evaluateByEventPassing: no targetWindow!\n");
+            if (FBTrace.DBG_ERRORS) FBTrace.sysout("commandLine.evaluateByEventPassing: no targetWindow!\n");
             return;
         }
 
@@ -508,7 +508,7 @@ Firebug.CommandLine = extend(Firebug.Module,
 
     showPanel: function(browser, panel)
     {
-        var chrome = browser.chrome;
+        var chrome = Firebug.chrome;
 
         var isConsole = panel && panel.name == "console";
         if (Firebug.largeCommandLine)
@@ -624,7 +624,7 @@ Firebug.CommandLine = extend(Firebug.Module,
         }
     },
 
-    onPanelEnable: function(context, panelName)
+    onPanelEnable: function(panelName)
     {
         collapse(Firebug.chrome.$("fbCommandBox"), true);
         collapse(Firebug.chrome.$("fbPanelSplitter"), true);
@@ -633,7 +633,7 @@ Firebug.CommandLine = extend(Firebug.Module,
         this.setMultiLine(Firebug.largeCommandLine, Firebug.chrome);
     },
 
-    onPanelDisable: function(context, panelName)
+    onPanelDisable: function(panelName)
     {
         if (panelName != 'console')  // we don't care about other panels
             return;

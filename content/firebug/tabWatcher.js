@@ -135,7 +135,7 @@ top.TabWatcher = extend(new Firebug.Listener(),
                 return false;  // we did not create a context
             }
 
-            var browser = this.getBrowserByWindow(win);  // sets browser.chrome to Firebug.chrome
+            var browser = this.getBrowserByWindow(win);
 
             context = this.createContext(win, browser, Firebug.TabContext);
        }
@@ -251,7 +251,10 @@ top.TabWatcher = extend(new Firebug.Listener(),
         if (!persistedState || persistedState.location != win.location.href)
             persistedState = null;
 
-        var context = new contextType(win, browser, browser.chrome, persistedState);
+        // The proper instance of FirebugChrome object (different for detached Firebug and
+        // accessible as Firebug.chrome property) must be used for the context object.
+        // (the global context object FirebugContext is also different for detached firebug).
+        var context = new contextType(win, browser, Firebug.chrome, persistedState);
         contexts.push(context);
 
         context.uid = FBL.getUniqueId();
@@ -394,8 +397,7 @@ top.TabWatcher = extend(new Firebug.Listener(),
             FBTrace.sysout("-> tabWatcher.watchBrowser for: " + (uri instanceof nsIURI?uri.spec:uri) + "\n");
         }
 
-        if (!browser.chrome)
-            registerFrameListener(browser);  // sets browser.chrome to Firebug.chrome
+        registerFrameListener(browser);
 
         var shouldDispatch = this.watchTopWindow(browser.contentWindow, safeGetURI(browser), true);
 
@@ -526,9 +528,7 @@ top.TabWatcher = extend(new Firebug.Listener(),
             var browser = tabBrowser.browsers[i];
             if (browser.contentWindow == win)
             {
-                if (!browser.chrome)
-                    registerFrameListener(browser);  // sets browser.chrome to Firebug.chrome
-
+                registerFrameListener(browser);
                 return browser;
             }
         }
@@ -623,10 +623,10 @@ var FrameProgressListener = extend(BaseProgressListener,
 // Registers frame listener for specified tab browser.
 function registerFrameListener(browser)
 {
-    if (browser.chrome)
+    if (browser.frameListener)
         return;
 
-    browser.chrome = Firebug.chrome;
+    browser.frameListener = FrameProgressListener;  // just a mark saying we've registered. TODO remove!
     browser.addProgressListener(FrameProgressListener, NOTIFY_STATE_DOCUMENT);
 
     if (FBTrace.DBG_WINDOWS)
@@ -780,7 +780,7 @@ function onUnloadTopWindow(event)
     var win = event.currentTarget;
     win.removeEventListener("unload", onUnloadTopWindow, true);
     if (FBTrace.DBG_WINDOWS)
-        FBTrace.sysout("-> tabWatcher onUnloadTopWindow for: "+win.location+"\n");
+        FBTrace.sysout("-> tabWatcher onUnloadTopWindow for: "+win.location+" typeof :"+typeof(win)+"\n");
     TabWatcher.unwatchTopWindow(win);
 }
 

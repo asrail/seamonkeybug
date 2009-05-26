@@ -65,8 +65,8 @@ top.FirebugChrome =
         }
         catch (exc)
         {
-            if (FBTrace.dumpProperties)
-                FBTrace.dumpProperties("chrome.panelBarReady FAILS", exc);
+            if (FBTrace.sysout)
+                FBTrace.sysout("chrome.panelBarReady FAILS: "+exc, exc);
             return false;
         }
         return true; // the panel bar is ready
@@ -80,14 +80,14 @@ top.FirebugChrome =
         if (!detachArgs)
             detachArgs = {};
 
-        if (FBTrace.DBG_INITIALIZE) FBTrace.dumpProperties("chrome.initialize w/detachArgs=", detachArgs);
+        if (FBTrace.DBG_INITIALIZE) FBTrace.sysout("chrome.initialize w/detachArgs=", detachArgs);
 
         if (detachArgs.FBL)
             top.FBL = detachArgs.FBL;
         else
         {
-            if (FBTrace.dumpProperties && (!FBL || !FBL.initialize) )
-                FBTrace.dumpProperties("Firebug is broken, FBL incomplete, if the last function is QI, check lib.js:", FBL);
+            if (FBTrace.sysout && (!FBL || !FBL.initialize) )
+                FBTrace.sysout("Firebug is broken, FBL incomplete, if the last function is QI, check lib.js:", FBL);
 
             FBL.initialize();
         }
@@ -175,7 +175,7 @@ top.FirebugChrome =
                 Firebug.initializeUI(detachArgs);
 
         } catch (exc) {
-            FBTrace.dumpProperties("chrome.initializeUI fails "+exc, exc);
+            FBTrace.sysout("chrome.initializeUI fails "+exc, exc);
         }
         var toolbar = $('fbToolbar');
     },
@@ -229,13 +229,10 @@ top.FirebugChrome =
         {
             Firebug.setChrome(this, "detached"); // 1.4
 
-            browser.originalChrome = browser.chrome; // 1.3
-            browser.chrome = this;
-
             Firebug.showContext(browser, context);
 
             if (FBTrace.DBG_WINDOWS)
-                FBTrace.sysout("attachBrowser inDetachedScope in browser.chrome.window: "+browser.chrome.window.location);
+                FBTrace.sysout("attachBrowser inDetachedScope in Firebug.chrome.window: "+Firebug.chrome.window.location);
         }
 
     },
@@ -248,9 +245,6 @@ top.FirebugChrome =
 
         // when we are done here the window.closed will be true so we don't want to hang on to the ref.
         detachedChrome.window = "This is detached chrome!";
-
-        browser.chrome = Firebug.originalChrome;  // 1.3
-        delete browser.originalChrome;
     },
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -533,7 +527,7 @@ top.FirebugChrome =
         delete this.previousObject;
         delete this.previousPanelName;
         delete this.previousSidePanelName;
-        delete this.inspectingContext;
+        delete this.inspectingChrome;
 
         return switchToPanel;
     },
@@ -772,7 +766,7 @@ top.FirebugChrome =
 
     setChromeDocumentAttribute: function(id, name, value)
     {
-        // Call as context.browser.chrome.setChromeDocumentAttribute() to set attributes in another window.
+        // Call as  Firebug.chrome.setChromeDocumentAttribute() to set attributes in another window.
         var elt = $(id);
         if (elt)
             elt.setAttribute(name, value);
@@ -1265,7 +1259,7 @@ function onSelectedSidePanel(event)
         else
         {
             if (FBTrace.DBG_ERRORS)
-                FBTrace.dumpProperties("onSelectedSidePanel FirebugContext has no panelName: ",FirebugContext);
+                FBTrace.sysout("onSelectedSidePanel FirebugContext has no panelName: ",FirebugContext);
         }
     }
     if (FBTrace.DBG_PANELS) FBTrace.sysout("chrome.onSelectedSidePanel name="+(sidePanel?sidePanel.name:"undefined")+"\n");

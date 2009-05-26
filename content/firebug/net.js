@@ -257,7 +257,7 @@ Firebug.NetMonitor = extend(Firebug.ActivableModule,
     reattachContext: function(browser, context)
     {
         Firebug.ActivableModule.reattachContext.apply(this, arguments);
-        this.syncFilterButtons(context.chrome);
+        this.syncFilterButtons(Firebug.chrome);
     },
 
     destroyContext: function(context)
@@ -289,46 +289,40 @@ Firebug.NetMonitor = extend(Firebug.ActivableModule,
         delete contexts[tabId];
     },
 
-    onPanelEnable: function(context, activatedPanelName)
+    onEnabled: function(context)
     {
-        if (activatedPanelName != panelName)
-            return;
-
         if (FBTrace.DBG_NET)
-            FBTrace.sysout("net.onPanelEnable; " + context.getName());
+            FBTrace.sysout("net.onEnabled; "+context.getName());
 
         monitorContext(context);
     },
 
-    onPanelDisable: function(context, deactivatedPanelName)
+    onDisabled: function(context)
     {
-        if (deactivatedPanelName != panelName)
-            return;
-
         if (FBTrace.DBG_NET)
-            FBTrace.sysout("net.onPanelDisable; " + context.getName());
+            FBTrace.sysout("net.onDisabled; "+context.getName());
 
         unmonitorContext(context);
     },
 
-    onResumeFirebug: function(context)
+    onResumeFirebug: function()
     {
         if (FBTrace.DBG_NET)
-            FBTrace.sysout("net.onResumeFirebug; " + context.getName());
+            FBTrace.sysout("net.onResumeFirebug; ");
 
         // Resume only if enabled.
         if (Firebug.NetMonitor.isAlwaysEnabled())
-            monitorContext(context);
+            TabWatcher.iterateContexts(monitorContext);
     },
 
-    onSuspendFirebug: function(context)
+    onSuspendFirebug: function()
     {
         if (FBTrace.DBG_NET)
-            FBTrace.sysout("net.onSuspendFirebug; " + context.getName());
+            FBTrace.sysout("net.onSuspendFirebug; ");
 
         // Suspend only if enabled.
         if (Firebug.NetMonitor.isAlwaysEnabled())
-            unmonitorContext(context);
+            TabWatcher.iterateContexts(unmonitorContext);
     },
 });
 
@@ -743,14 +737,10 @@ NetPanel.prototype = domplate(Firebug.ActivablePanel,
     // UI Listener
     showUI: function(browser, context)
     {
-        if (Firebug.NetMonitor.isAlwaysEnabled())  // XXXjjb Honza I wonder if this should be done here or only in onPanelEnable and onResume?
-            monitorContext(context);
     },
 
     hideUI: function(browser, context)
     {
-        if (Firebug.NetMonitor.isAlwaysEnabled())
-            unmonitorContext(context);
     },
 
     show: function(state)
@@ -901,7 +891,7 @@ NetPanel.prototype = domplate(Firebug.ActivablePanel,
 
         if (object)
         {
-            var subItems = FirebugChrome.getInspectMenuItems(object); // XXXjjb context.chrome?
+            var subItems = Firebug.chrome.getInspectMenuItems(object);
             if (subItems.length)
             {
                 items.push("-");
@@ -1797,7 +1787,7 @@ NetProgress.prototype =
         else
         {
             if (FBTrace.DBG_NET)
-                FBTrace.dumpProperties("net.requestedFile no file for request=", request);
+                FBTrace.sysout("net.requestedFile no file for request=", request);
         }
     },
 
@@ -2178,11 +2168,11 @@ NetProgress.prototype =
     {
         // For image files we can't get the nsIHttpChannel (the request object is imgIRequest
         // in such a case). So, this method is not much useful.
-        var file = this.getRequestFile(request, null, true);
-        if (FBTrace.DBG_NET)
-            FBTrace.sysout("net.onStateChange +" + (file ? (now() - file.startTime) : "?") + " " +
-                getPrintableTime() + ", " + getStateDescription(flag) + ", " +
-                safeGetName(request), file);
+        //var file = this.getRequestFile(request, null, true);
+        //if (FBTrace.DBG_NET)
+        //    FBTrace.sysout("net.onStateChange +" + (file ? (now() - file.startTime) : "?") + " " +
+        //        getPrintableTime() + ", " + getStateDescription(flag) + ", " +
+        //        safeGetName(request), file);
     },
 
     onProgressChange : function(progress, request, current, max, total, maxTotal)
@@ -2403,7 +2393,7 @@ NetPhase.prototype =
 
 /*
  * Use this object to automatically select Net panel and inspect a network request.
- * context.chrome.select(new FBL.NetFileLink(url [, request]));
+ * Firebug.chrome.select(new FBL.NetFileLink(url [, request]));
  */
 FBL.NetFileLink = function(href, request)
 {
@@ -2448,6 +2438,9 @@ function monitorContext(context)
     }
     else
     {
+        if (FBTrace.DBG_NET)
+            FBTrace.sysout("net.monitorContext; create new NetProgress(context). " + tabId);
+
         networkContext = new NetProgress(context);
     }
 
@@ -2621,7 +2614,7 @@ function getCacheEntry(file, netProgress)
         catch (exc)
         {
             if (FBTrace.DBG_ERRORS)
-                FBTrace.dumpProperties("net.delayGetCacheEntry FAILS", exc);
+                FBTrace.sysout("net.delayGetCacheEntry FAILS", exc);
         }
     });
 }
@@ -2960,7 +2953,7 @@ Firebug.NetMonitor.NetInfoBody = domplate(Firebug.Rep, new Firebug.Listener(),
     updateInfo: function(netInfoBox, file, context)
     {
         if (FBTrace.DBG_NET)
-            FBTrace.dumpProperties("updateInfo file", file);
+            FBTrace.sysout("updateInfo file", file);
 
         var tab = netInfoBox.selectedTab;
         if (hasClass(tab, "netInfoParamsTab"))
@@ -3352,7 +3345,7 @@ var HttpObserver =
             info.postText = readPostTextFromPage(request.name, context);
 
         if (FBTrace.DBG_NET && info.postText)
-            FBTrace.dumpProperties("net.onExamineResponse, POST data: " + info.postText, info);
+            FBTrace.sysout("net.onExamineResponse, POST data: " + info.postText, info);
 
         if (networkContext)
             networkContext.post(respondedFile, [request, now(), info]);

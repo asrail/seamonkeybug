@@ -92,7 +92,7 @@ top.Firebug.Console.injector =
         if (!win)
         {
             if (FBTrace.DBG_CONSOLE)
-                FBTrace.dumpStack("no win in forceConsoleCompilationInPage!");
+                FBTrace.sysout("no win in forceConsoleCompilationInPage!");
             return;
         }
 
@@ -175,11 +175,11 @@ function FirebugConsoleHandler(context, win)
     this.handleEvent = function(event)
     {
         if (FBTrace.DBG_CONSOLE)
-            FBTrace.dumpProperties("FirebugConsoleHandler("+this.handler_name+") "+event.target.getAttribute("methodName")+", event", event);
+            FBTrace.sysout("FirebugConsoleHandler("+this.handler_name+") "+event.target.getAttribute("methodName")+", event", event);
         if (!Firebug.CommandLine.CommandHandler.handle(event, this, win))
         {
             if (FBTrace.DBG_CONSOLE)
-                FBTrace.dumpProperties("FirebugConsoleHandler", this);
+                FBTrace.sysout("FirebugConsoleHandler", this);
 
             var methodName = event.target.getAttribute("methodName");
             Firebug.Console.log($STRF("console.MethodNotSupported", [methodName]));

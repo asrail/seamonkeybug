@@ -425,7 +425,7 @@ Firebug.HTMLPanel.prototype = extend(Firebug.Panel,
                 else
                 {
                     if (FBTrace.DBG_HTML || FBTrace.DBG_ERRORS)
-                        FBTrace.dumpProperties("html.getParentObject parentNode.nodeType 9 but no defaultView?", parentNode);
+                        FBTrace.sysout("html.getParentObject parentNode.nodeType 9 but no defaultView?", parentNode);
                 }
             }
             else
@@ -552,7 +552,7 @@ Firebug.HTMLPanel.prototype = extend(Firebug.Panel,
             catch (exc)
             {
                 if (FBTrace.DBG_ERRORS || FBTrace.DBG_HTML)
-                    FBTrace.dumpProperties("html.onMutateNode FAILS:", exc);
+                    FBTrace.sysout("html.onMutateNode FAILS:", exc);
             }
         }, this);
     },
@@ -835,7 +835,7 @@ Firebug.HTMLPanel.prototype = extend(Firebug.Panel,
                 this.inspectorHistory.pop();
 
             if (FBTrace.DBG_HTML)
-                FBTrace.dumpProperties("html.stopInspecting: inspectoryHistory updated", this.inspectorHistory);
+                FBTrace.sysout("html.stopInspecting: inspectoryHistory updated", this.inspectorHistory);
         }
 
         this.ioBox.highlight(null);
@@ -1070,7 +1070,7 @@ Firebug.HTMLPanel.SoloElement = domplate(Firebug.HTMLPanel.CompleteElement,
             if (child.repObject)
             {
                 var panel = Firebug.getElementPanel(child);
-                panel.context.chrome.select(child.repObject);
+                Firebug.chrome.select(child.repObject);
                 break;
             }
         }
@@ -1280,15 +1280,13 @@ HTMLEditor.prototype = domplate(Firebug.BaseEditor,
         this.input.value = value;
         this.input.focus();
 
-        var command = this.panel.context.chrome.$("cmd_toggleHTMLEditing");
+        var command = Firebug.chrome.$("cmd_toggleHTMLEditing");
         command.setAttribute("checked", true);
     },
 
     hide: function()
     {
-        var chrome = this.panel.context.chrome;
-
-        var command = chrome.$("cmd_toggleHTMLEditing");
+        var command = Firebug.chrome.$("cmd_toggleHTMLEditing");
         command.setAttribute("checked", false);
 
         this.panel.panelNode.removeChild(this.box);
