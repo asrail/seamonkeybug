@@ -343,7 +343,7 @@ function $STR(name, bundle)
     }
     catch (err)
     {
-        if (FBTrace.DBG_ERRORS)
+        if (FBTrace.DBG_LOCALE)
         {
             FBTrace.sysout("lib.getString: " + name + "\n");
             FBTrace.sysout("lib.getString FAILS ", err);
@@ -376,7 +376,7 @@ function $STRF(name, args, bundle)
     }
     catch (err)
     {
-        if (FBTrace.DBG_ERRORS)
+        if (FBTrace.DBG_LOCALE)
         {
             FBTrace.sysout("lib.getString: " + name + "\n");
             FBTrace.sysout("lib.getString FAILS ", err);
@@ -1119,7 +1119,7 @@ this.getRectTRBLWH = function(elt, context)
         };
 
     frameRect = coords;
-        
+
     if (elt)
     {
         win = context.window;
@@ -1182,7 +1182,7 @@ this.isScrolledToBottom = function(element)
 this.scrollToBottom = function(element)
 {
     element.scrollTop = element.scrollHeight - element.offsetHeight;
-    
+
     if (FBTrace.DBG_CONSOLE)
         element.wasScrolledToBottom = true;
 };
@@ -1556,14 +1556,19 @@ this.isWhitespace = function(text)
 
 this.splitLines = function(text)
 {
-    if (text.split)
-        return text.split(reSplitLines);
+    const reSplitLines2 = /.*(:?\r\n|\n|\r)?/mg;
+    var lines;
+    if (text.match)
+    {
+        lines = text.match(reSplitLines2);
+    }
     else
     {
         var str = text+"";
-        var theSplit = str.split(reSplitLines);
-        return theSplit;
+        lines = str.match(reSplitLines2);
     }
+    lines.pop();
+    return lines;
 };
 
 this.trimLeft = function(text)
@@ -1602,7 +1607,7 @@ this.wrapText = function(text, noEscapeHTML)
         if (!noEscapeHTML) html.push("</pre>");
     }
 
-    return html.join(noEscapeHTML ? "\n" : "");
+    return html.join("");
 }
 
 this.insertWrappedText = function(text, textBox, noEscapeHTML)
@@ -2161,14 +2166,14 @@ this.getAllStyleSheets = function(context)
         if (!sheet.href || !recordedSheets[sheet.href])
         {
             styleSheets.push(sheet);
-    
+
             for (var i = 0; i < sheet.cssRules.length; ++i)
             {
                 var rule = sheet.cssRules[i];
                 if (rule instanceof CSSImportRule)
                     addSheet(rule.styleSheet);
             }
-            
+
             recordedSheets[sheet.href] = true;
         }
     }
@@ -4176,12 +4181,12 @@ this.EvalLevelSourceFile.prototype.OuterScriptAnalyzer.prototype =
 
 this.EvalLevelSourceFile.prototype.getBaseLineOffset = function()
 {
-    return this.outerScript.baseLineNumber; // baseLineNumber always valid even after jsdIscript isValid false
+    return this.outerScript.baseLineNumber - 1; // baseLineNumber always valid even after jsdIscript isValid false
 }
 
 this.EvalLevelSourceFile.prototype.getObjectDescription = function()
 {
-    if (this.href.kind == "source")
+    if (this.href.kind == "source" || this.href.kind == "data")
         return FBL.splitURLBase(this.href);
 
     if (!this.summary)

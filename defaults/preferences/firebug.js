@@ -135,6 +135,8 @@ pref("extensions.firebug.DBG_JSONVIEWER", false);   // json explorer            
 pref("extensions.firebug.DBG_EDITOR", false);       // Inline editors                            /*@explore*/
 pref("extensions.firebug.DBG_SHORTCUTS", false);    // Keyboard shortcuts.                       /*@explore*/
 pref("extensions.firebug.DBG_A11Y", false);         // a11y                                      /*@explore*/
+pref("extensions.firebug.DBG_LOCALE", false);       // localization, missing strings             /*@explore*/
+pref("extensions.firebug.DBG_INFOTIP", false);      // popup info tip in panels                  /*@explore*/
 
 //Keyboard
 pref("extensions.firebug.key.shortcut.reenterCommand", "control shift e");
@@ -156,5 +158,5 @@ pref("extensions.firebug.key.shortcut.clearConsole", "accel shift r");
 pref("extensions.firebug.key.shortcut.openTraceConsole", "shift r");                             /*@explore*/
 
 //Accessibility
-pref("extensions.firebug.a11y.enableSites", false);
+pref("extensions.firebug.a11y.enable", false);
 
