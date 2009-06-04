@@ -118,10 +118,14 @@ top.TabWatcher = extend(new Firebug.Listener(),
             if (!this.shouldShowContext(context))
             {
                 this.watchContext(win, null);
+
+                // There shouldn't be context for this widnow so, remove it from the 
+                // global array.
+                remove(contexts, context);
+
                 return;  // did not create a context
             }
             // else we should show
-
         }
         else // then we've not looked this window in this session
         {
@@ -424,7 +428,7 @@ top.TabWatcher = extend(new Firebug.Listener(),
         var detached = Firebug.isDetached();
         var shouldDispatch = true;
         if (!detached)
-            var shouldDispatch = this.unwatchTopWindow(browser.contentWindow);
+            shouldDispatch = this.unwatchTopWindow(browser.contentWindow);
 
         if (shouldDispatch)
         {

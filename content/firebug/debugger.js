@@ -635,7 +635,7 @@ Firebug.Debugger = extend(Firebug.ActivableModule,
                 chrome.syncSidePanels();
 
                 var panel = context.getPanel("script", true);
-                if (panel)
+                if (panel && panel == Firebug.chrome.getSelectedPanel())
                     panel.showNoStackFrame(); // unhighlight and remove toolbar-status line
 
                 context.executingSourceFile = null;
@@ -730,6 +730,11 @@ Firebug.Debugger = extend(Firebug.ActivableModule,
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
     // These are XUL window level call backs and should be moved into Firebug where is says nsIFirebugClient
 
+    onPauseJSDRequested: function(rejection)
+    {
+        dispatch2(this.fbListeners, "onPauseJSDRequested", [rejection]);
+    },
+
     onJSDActivate: function(jsd, why)  // just before hooks are set
     {
         var active = this.setIsJSDActive();
@@ -737,7 +742,7 @@ Firebug.Debugger = extend(Firebug.ActivableModule,
         if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("debugger.onJSDActivate "+why+" active:"+active+"\n");
 
-        dispatch2(this.fbListeners,"onJSDActivate",[fbs]);
+        dispatch2(this.fbListeners,"onJSDActivate",[fbs, why]);
     },
 
     onJSDDeactivate: function(jsd, why)
@@ -747,7 +752,7 @@ Firebug.Debugger = extend(Firebug.ActivableModule,
         if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("debugger.onJSDDeactivate "+why+" active:"+active+"\n");
 
-        dispatch2(this.fbListeners,"onJSDDeactivate",[fbs]);
+        dispatch2(this.fbListeners,"onJSDDeactivate",[fbs, why]);
     },
 
     setIsJSDActive: function()  // should only be call on the jsd activation events, so it correctly reflects jsd state
@@ -3199,11 +3204,16 @@ SourceFileRenamer.prototype.renameSourceFiles = function(context)
 
 Firebug.DebuggerListener =
 {
-    onJSDActivate: function(jsd)  // start or unPause
+    onPauseJSDRequested: function(rejection)
+    {
+        // push true to cause rejection
+    },
+
+    onJSDActivate: function(jsd, why)  // start or unPause
     {
 
     },
-    onJSDDeactivate: function(jsd) // stop or pause
+    onJSDDeactivate: function(jsd, why) // stop or pause
     {
 
     },
