@@ -210,7 +210,8 @@ this.safeToString = function(ob)
 {
     try
     {
-        return ob.toString();
+        if (ob && toString in ob && typeof (ob[toString]) == "function")
+            return ob.toString();
     }
     catch (exc)
     {
@@ -416,7 +417,7 @@ this.internationalize = function(element, attr, args)
     }
     else
     {
-        if (FBTrace.DBG_ERRORS)
+        if (FBTrace.DBG_LOCALE)
             FBTrace.sysout("Failed to internationalize element with attr "+attr+' args:'+args);
     }
 }
@@ -1942,7 +1943,7 @@ this.findScriptForFunctionInContext = function(context, fn)
     var fns = fn.toString();
     this.forEachFunction(context, function findMatchingScript(script, aFunction)
     {
-        if (!aFunction.toString)
+        if (!aFunction.toString || typeof(aFunction.toString) != "function")
             return;
         try {
             var tfs = aFunction.toString();
@@ -3215,7 +3216,7 @@ this.readPostTextFromRequest = function(request, context)
             }
 
             // Read data from the stream..
-            var charset = context.window.document.characterSet;
+            var charset = (context && context.window) ? context.window.document.characterSet : null;
             var text = this.readFromStream(is, charset, true);
 
             // Seek locks the file so, seek to the beginning only if necko hasn't read it yet,

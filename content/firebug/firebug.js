@@ -239,14 +239,17 @@ top.Firebug =
             "menu_enablePanels", "menu_disablePanels",
             "fbCommandLine", "fbFirebugMenu", "fbLargeCommandLine", "menu_customizeShortcuts",
             "menu_enableA11y", "fbContinueButton", "fbBreakOnNextButton",
-            "fbMinimizeButton", "FirebugMenu_Sites"];
+            "fbMinimizeButton", "FirebugMenu_Sites", "fbResumeBoxButton"];
 
         var tooltipTextElements = ["fbContinueButton", "fbBreakOnNextButton", "fbMinimizeButton"];
         for (var i=0; i<elements.length; i++)
         {
             var element = doc.getElementById(elements[i]);
-            if (!element && FBTrace.DBG_ERRORS)
+            if (!element && FBTrace.DBG_LOCALE )
+            {
                 FBTrace.sysout("firebug.internationalizeUI; Element Not Found: " + elements[i]);
+                continue;
+            }
             FBL.internationalize(element, tooltipTextElements.indexOf(elements[i]) == -1 ? "label" : "tooltiptext");
         }
     },
@@ -842,17 +845,26 @@ top.Firebug =
     {
         if ( isLocalURL(href) )
             return getLocalPath(href);
+
         var data;
         if (context)
         {
             data = context.sourceCache.loadText(href);
-        } else
-        {
-            var ctx = { browser: tabBrowser.selectedBrowser, window: tabBrowser.selectedBrowser.contentWindow };
-            data = new SourceCache(ctx).loadText(href);
         }
+        else
+        {
+            // xxxHonza: if the fake context is used the source code is always get using
+            // (a) the browser cache or (b) request to the server.
+            var ctx = {
+                browser: tabBrowser.selectedBrowser,
+                window: tabBrowser.selectedBrowser.contentWindow
+            };
+            data = new Firebug.SourceCache(ctx).loadText(href);
+        }
+
         if (!data)
             return;
+
         if (!temporaryDirectory)
         {
             var tmpDir = DirService.getFile(NS_OS_TEMP_DIR, {});
@@ -869,8 +881,10 @@ top.Firebug =
                 lpath += "index";
             lpath += ".html";
         }
+
         if ( getPlatformName() == "WINNT" )
             lpath = lpath.replace(/\//g, "\\");
+
         var file = QI(temporaryDirectory.clone(), nsILocalFile);
         file.appendRelativePath(lpath);
         if (!file.exists())
@@ -913,9 +927,6 @@ top.Firebug =
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
     // Browser Bottom Bar
 
-    // minimized <-> inBrowser  This code only works in browser.xul
-    // xxxHonza: this method is also used when resuming detached Firebug for selected page.
-    // It should now work even called from Firebug.xul
     showBar: function(show)
     {
         var browser = Firebug.chrome.getCurrentBrowser();
@@ -993,8 +1004,8 @@ top.Firebug =
 
         if (!Firebug.isClosed() && FirebugContext && browser.showFirebug)  // then we are debugging the selected tab
         {
-            if (Firebug.isDetached()) // if we are out of the browser close
-                Firebug.toggleDetachBar(false);
+            if (Firebug.isDetached()) // if we are out of the browser focus the window
+                Firebug.chrome.focus();
             else if (Firebug.isMinimized()) // toggle minimize
                 Firebug.unMinimize();
             else if (!forceOpen)  // else isInBrowser
@@ -1004,18 +1015,12 @@ top.Firebug =
         {
             if (FBTrace.DBG_ERRORS)
             {
+                if (FirebugContext && Firebug.isClosed())
+                    FBTrace.sysout("ASSERT: Firebug.isClosed() and FirebugContext:"+FirebugContext.getName()+getStackDump());
                 var context = TabWatcher.getContextByWindow(browser.contentWindow);
                 if (context) // ASSERT: we should not have showFirebug false on a page with a context
-                    FBTrace.sysout("Firebug.toggleBar: a browser without showFirebug has a context! "+context.getName());
+                    FBTrace.sysout("Firebug.toggleBar: placement "+this.getPlacement()+ " context: "+context.getName()+" FirebugContext: "+(FirebugContext?FirebugContext.getName():"null")+" browser.showFirebug:"+browser.showFirebug);
             }
-
-            if (Firebug.isClosed())
-                Firebug.setPlacement("inBrowser");
-            else if (Firebug.isMinimized())
-                Firebug.unMinimize();
-            else if (Firebug.isDetached())
-                Firebug.chrome.focus();
-            // else we are already inBrowser and create will show.
 
             var created = TabWatcher.watchBrowser(browser);  // create a context for this page
             if (!created)
@@ -1039,7 +1044,6 @@ top.Firebug =
         {
             Firebug.setPlacement("minimized");
             this.showBar(false);
-            Firebug.resetTooltip();
         }
     },
 
@@ -1048,7 +1052,6 @@ top.Firebug =
         this.updateActiveContexts(FirebugContext);
         Firebug.setPlacement("inBrowser");
         Firebug.showBar(true);
-        Firebug.resetTooltip();
     },
 
     toggleDetachBar: function(forceOpen)  // detached -> closed; inBrowser -> detached TODO reattach
@@ -1106,7 +1109,7 @@ top.Firebug =
             return null;
         }
 
-        if (FBTrace.DBG_WINDOWS)
+        if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("Firebug.detachBar opening firebug.xul for context "+context.getName() );
 
         this.showBar(false);  // don't show in browser.xul now
@@ -1187,7 +1190,11 @@ top.Firebug =
         TabWatcher.iterateContexts(function turnOff(context)  // we close the current contexts,
         {
             if (!context.browser)
-                FBTrace.sysout("context with no browser??!! "+context.getName());
+            {
+                if (FBTrace.DBG_ERRORS)
+                    FBTrace.sysout("context with no browser??!! "+context.getName());
+                return;
+            }
             if (context != FirebugContext)
                 TabWatcher.unwatchBrowser(context.browser);
         });
@@ -1513,7 +1520,7 @@ top.Firebug =
 
     placements: ["none", "inBrowser", "detached", "minimized"],
 
-    placement: 3, // default is inBrowser
+    placement: 0,
 
     setPlacement: function(toPlacement)
     {
@@ -1523,7 +1530,10 @@ top.Firebug =
         for (Firebug.placement = 0; Firebug.placement < Firebug.placements.length; Firebug.placement++)
         {
             if (toPlacement == Firebug.placements[Firebug.placement])
+            {
+                Firebug.resetTooltip();
                 return Firebug.placement;
+            }
         }
         throw new Error("Firebug.setPlacement cannot match "+toPlacement+" as a placement");
     },
@@ -1532,6 +1542,7 @@ top.Firebug =
     {
         return Firebug.placements[Firebug.placement];
     },
+
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
     // TabWatcher Listener
 
@@ -1592,7 +1603,6 @@ top.Firebug =
             Firebug.chrome.setFirebugContext(context); // the context becomes the default for its view
         }
 
-
         dispatch(modules, "showContext", [browser, context]);  // tell modules we may show UI
 
         if (Firebug.isMinimized())
@@ -1620,10 +1630,15 @@ top.Firebug =
         }
         else if (Firebug.isClosed())
         {
-            if (context)
+            if (context)  // then we are opening a new context
             {
-                Firebug.setPlacement("inBrowser");
-                this.showBar(true);
+                if (Firebug.openInWindow)
+                    this.detachBar(context);  // the placement will be set once the external window opens
+                else
+                {
+                    this.setPlacement("inBrowser");
+                    this.showBar(true);
+                }
             }
             // else should not happen
         }
@@ -3266,9 +3281,6 @@ Firebug.ModuleManager =
 
     enableModules: function(context)
     {
-        if (!context)
-            context = FirebugContext;
-
         for (var i=0; i<activableModules.length; i++)
         {
             var module = activableModules[i];

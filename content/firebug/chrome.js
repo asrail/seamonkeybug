@@ -410,12 +410,6 @@ top.FirebugChrome =
         }
     },
 
-    openPanelOptionsMenu : function()
-    {
-        // XXXjjb what is this?
-        FBTrace.sysout('test');
-    },
-
     getNextObject: function(reverse)
     {
         var panel = FirebugContext.getPanel(FirebugContext.panelName);
@@ -645,7 +639,7 @@ top.FirebugChrome =
 
     focusLocationList: function()
     {
-        locationList.showPopup();
+        locationList.popup.showPopup(locationList, -1, -1, "popup", "bottomleft", "topleft");
     },
 
     syncLocationList: function()
@@ -1371,7 +1365,6 @@ function getRealObject(object)
 {
     var rep = Firebug.getRep(object);
     var realObject = rep ? rep.getRealObject(object, FirebugContext) : null;
-    var realRep = realObject ? Firebug.getRep(realObject) : rep;
     return realObject ? realObject : object;
 }
 

@@ -1406,8 +1406,8 @@ Firebug.Debugger = extend(Firebug.ActivableModule,
             // the previous and reloaded source. In that case let's use a cheap URL.
             url = new String(callerURL + (kind ? "/"+kind+"/" : "/nokind/")+"seq/" +(context.dynamicURLIndex++));
             url.kind = "seq";
-            if (FBTrace.DBG_SOURCEFILES)
-                FBTrace.sysout("debugger.getSequentialURL context:"+context.getName()+" url:"+url, url);
+            if (FBTrace.DBG_SOURCEFILES || isNaN(context.dynamicURLIndex) )
+                FBTrace.sysout("debugger.getSequentialURL context:"+context.getName()+" url:"+url+" index: "+context.dynamicURLIndex, url);
         }
         return url;
     },
@@ -1589,9 +1589,12 @@ Firebug.Debugger = extend(Firebug.ActivableModule,
         }
 
         this.onFunctionCall = bind(this.onFunctionCall, this);
-        fbs.registerClient(this);   // allow callbacks for jsd
         Firebug.ActivableModule.initialize.apply(this, arguments);
+    },
 
+    enable: function()
+    {
+        fbs.registerClient(this);   // allow callbacks for jsd
         if (this.isAlwaysEnabled())
             this.registerDebugger();
     },
