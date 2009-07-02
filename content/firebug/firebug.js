@@ -239,7 +239,8 @@ top.Firebug =
             "menu_enablePanels", "menu_disablePanels",
             "fbCommandLine", "fbFirebugMenu", "fbLargeCommandLine", "menu_customizeShortcuts",
             "menu_enableA11y", "fbContinueButton", "fbBreakOnNextButton",
-            "fbMinimizeButton", "FirebugMenu_Sites", "fbResumeBoxButton"];
+            "fbMinimizeButton", "FirebugMenu_Sites", "fbResumeBoxButton",
+            "menu_AllOff", "menu_AllOn"];
 
         var tooltipTextElements = ["fbContinueButton", "fbBreakOnNextButton", "fbMinimizeButton"];
         for (var i=0; i<elements.length; i++)
@@ -397,22 +398,25 @@ top.Firebug =
 
     getEnablementStatus: function()
     {
+        var strOn = $STR("enablement.on");
+        var strOff = $STR("enablement.off");
+
         var status = "";
         var fbStatusIcon = $('fbStatusIcon');
         if (fbStatusIcon.getAttribute("console") == "on")
-            status +="console: on,";
+            status +="Console: "+strOn+",";
         else
-            status +="console: off,";
+            status +="Console: "+strOff+",";
 
         if (fbStatusIcon.getAttribute("net") == "on")
-            status +=" net: on,";
+            status +=" Net: "+strOn+",";
         else
-            status +=" net: off,";
+            status +=" Net: "+strOff+",";
 
         if (fbStatusIcon.getAttribute("script") == "on")
-            status +=" script: on";
+            status +=" Script: "+strOn;
         else
-            status +=" script: off";
+            status +=" Script: "+strOff+"";
 
         return status;
     },
@@ -428,11 +432,16 @@ top.Firebug =
         else
         {
             var total = TabWatcher.contexts.length;
-            tooltip += "\n"+total+" "+ ((total == 1)?$STR("Firebug"):$STR("Firebugs"));
+            tooltip += "\n"+total+" "+ ((total == 1)?
+                $STR("Total_Firebug"):$STR("Total_Firebugs"));
         }
 
         if (Firebug.URLSelector.allPagesActivation)
-            tooltip += "\n"+Firebug.URLSelector.allPagesActivation+" for all pages";
+        {
+            var label = Firebug.URLSelector.allPagesActivation == "on" ?
+                $STR("enablement.on") : $STR("enablement.off");
+            tooltip += "\n"+label+" "+$STR("enablement.for all pages");
+        }
 
         tooltip += "\n" + $STR(Firebug.getPlacement());
 
@@ -1114,11 +1123,17 @@ top.Firebug =
 
         this.showBar(false);  // don't show in browser.xul now
 
+        Firebug.chrome.setFirebugContext(context);  // make sure the FirebugContext agrees with context
+        FirebugContext = context;
+
+        if (FBTrace.DBG_ACTIVATION)
+            FBTrace.sysout("Firebug.detachBar opening firebug.xul for context "+FirebugContext.getName() );
+
         var args = {
             FBL: FBL,
             Firebug: this,
             browser: context.browser,
-            context: context
+            FirebugContext: window.FirebugContext
         };
         var win = openWindow("Firebug", "chrome://firebug/content/firebug.xul", "", args);
 
@@ -1561,6 +1576,7 @@ top.Firebug =
         this.updateActiveContexts(context); // a newly created context is active
 
         Firebug.chrome.setFirebugContext(context); // a newly created context becomes the default for the view
+        FirebugContext = context;
 
         if (deadWindowTimeout)
             this.rescueWindow(context.browser); // if there is already a window, clear showDetached.
@@ -1594,13 +1610,15 @@ top.Firebug =
 
         if (context)
         {
+            FirebugContext = context;
             Firebug.chrome.setFirebugContext(context); // the context becomes the default for its view
             this.updateActiveContexts(context);  // resume, after setting FirebugContext
         }
         else
         {
-            this.updateActiveContexts(context);  // suspend, before setting FirebugContext
-            Firebug.chrome.setFirebugContext(context); // the context becomes the default for its view
+            Firebug.chrome.setFirebugContext(context); // null context
+            FirebugContext = context;
+            this.updateActiveContexts(context);  // suspend, after setting FirebugContext
         }
 
         dispatch(modules, "showContext", [browser, context]);  // tell modules we may show UI
