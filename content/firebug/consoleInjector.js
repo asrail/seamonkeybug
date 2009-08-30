@@ -17,9 +17,8 @@ top.Firebug.Console.injector =
         {
             var attached = (win.wrappedJSObject._getFirebugConsoleElement ? true : false);
             if (FBTrace.DBG_CONSOLE)
-            {
-                FBTrace.sysout("Console.isAttached:"+attached+" to win.wrappedJSObject "+win.wrappedJSObject.location+" context.activeConsoleHandlers:"+context.activeConsoleHandlers);
-            }
+                FBTrace.sysout("Console.isAttached:"+attached+" to win.wrappedJSObject "+safeGetWindowLocation(win.wrappedJSObject));
+
             return attached;
         }
         else
@@ -43,6 +42,12 @@ top.Firebug.Console.injector =
 
         this.attachConsoleInjector(context, win);
         this.addConsoleListener(context, win);
+
+        if (context.consoleWarning)
+        {
+            Firebug.Console.clear(context); // remove the warning about reloading.
+            delete context.consoleWarning;
+        }
 
         var attached =  this.isAttached(context, win);
         if (attached)
@@ -133,7 +138,10 @@ top.Firebug.Console.injector =
 
         // We need the element to attach our event listener.
         var element = Firebug.Console.getFirebugConsoleElement(context, win);
-        element.setAttribute("FirebugVersion", Firebug.version); // Initialize Firebug version.
+        if (element)
+            element.setAttribute("FirebugVersion", Firebug.version); // Initialize Firebug version.
+        else
+            return false;
 
         var handler = new FirebugConsoleHandler(context, win);
         handler.attachTo(element);
@@ -217,7 +225,10 @@ function FirebugConsoleHandler(context, win)
     this.error = function()
     {
         Firebug.Errors.increaseCount(context);
-        logAssert("error", arguments);
+        if (arguments.length == 1)
+            logAssert("error", arguments);  // add more info based on stack trace
+        else
+            logFormatted(arguments, "error", true);  // user already added info
     };
 
     this.assert = function(x)
@@ -267,7 +278,7 @@ function FirebugConsoleHandler(context, win)
     {
         var sourceLink = getStackLink();
         // noThrottle true is probably ok, openGroups will likely be short strings.
-        var row = Firebug.Console.openGroup(arguments, null, "group", null, true, sourceLink);
+        var row = Firebug.Console.openGroup(arguments, null, "group a11yCollapsed", null, true, sourceLink);
         removeClass(row, "opened");
     };
 
@@ -410,7 +421,15 @@ function FirebugConsoleHandler(context, win)
         var errorObject = new FBL.ErrorMessage(msg, sourceName,
                         lineNumber, (sourceLine?sourceLine:""), category, context, trace);
 
-        var row = Firebug.Console.log(errorObject, context, "errorMessage", null, true); // noThrottle
+        var objects = errorObject;
+        if (args.length > 1)
+        {
+            objects = [errorObject];
+            for (var i = 1; i < args.length; i++)
+                objects.push(args[i]);
+        }
+
+        var row = Firebug.Console.log(objects, context, "errorMessage", null, true); // noThrottle
         row.scrollIntoView();
     }
 

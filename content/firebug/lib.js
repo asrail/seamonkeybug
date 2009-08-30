@@ -210,13 +210,16 @@ this.safeToString = function(ob)
 {
     try
     {
-        if (ob && toString in ob && typeof (ob[toString]) == "function")
+        if (ob && (typeof (ob['toString']) == "function") )
             return ob.toString();
+        var str = ob + "";
+        if (str.length > 0)
+            return str;
     }
     catch (exc)
     {
-        return "[an object with no toString() function]";
     }
+    return "[object has no toString() function]";
 };
 
 this.convertToUnicode = function(text, charset)
@@ -1211,9 +1214,9 @@ this.getOverflowParent = function(element)
 
 this.isScrolledToBottom = function(element)
 {
-    var onBottom = element.scrollTop + element.offsetHeight == element.scrollHeight;
+    var onBottom = (element.scrollTop + element.offsetHeight) == element.scrollHeight;
     if (FBTrace.DBG_CONSOLE)
-        FBTrace.sysout("isScrolledToBottom "+onBottom+" wasScrolledToBottom: "+element.wasScrolledToBottom);
+        FBTrace.sysout("isScrolledToBottom "+onBottom+" wasScrolledToBottom: "+this.wasScrolledToBottom);
     return onBottom;
 };
 
@@ -1222,7 +1225,9 @@ this.scrollToBottom = function(element)
     element.scrollTop = element.scrollHeight - element.offsetHeight;
 
     if (FBTrace.DBG_CONSOLE)
-        element.wasScrolledToBottom = true;
+        FBTrace.sysout("scrollToBottom reset scrollTop "+element.scrollTop+" wasScrolledToBottom: "+this.wasScrolledToBottom);
+
+    this.wasScrolledToBottom = true;
 };
 
 this.move = function(element, x, y)
@@ -1547,7 +1552,6 @@ function escapeHTMLAttribute(value)
     return around + (String(value).replace(/[&'"]/g, replaceChars)) + around;
 }
 
-
 function escapeHTML(value)
 {
     function replaceChars(ch)
@@ -1571,6 +1575,15 @@ function escapeHTML(value)
 }
 
 this.escapeHTML = escapeHTML;
+
+this.unEscapeHTML = function(str)
+{
+    return str.replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, ">")
+        .replace(/&#39;/g, ">");
+};
 
 this.cropString = function(text, limit)
 {
@@ -1621,9 +1634,11 @@ this.wrapText = function(text, noEscapeHTML)
     var html = [];
     var wrapWidth = Firebug.textWrapWidth;
 
-    // Split long text into lines and put every line into an <pre> element (only in case
+    // Split long text into lines and put every line into an <code> element (only in case
     // if noEscapeHTML is false). This is useful for automatic scrolling when searching
     // within response body (in order to scroll we need an element).
+    // Don't use <pre> elements since these adds addiontanl new line ending when copying
+    // selected source code using Firefox->Edit->Copy (Ctrl+C) (issue 2093).
     var lines = this.splitLines(text);
     for (var i = 0; i < lines.length; ++i)
     {
@@ -1631,26 +1646,27 @@ this.wrapText = function(text, noEscapeHTML)
         while (line.length > wrapWidth)
         {
             var m = reNonAlphaNumeric.exec(line.substr(wrapWidth, 100));
-            var wrapIndex = wrapWidth+ (m ? m.index : 0);
+            var wrapIndex = wrapWidth + (m ? m.index : 0);
             var subLine = line.substr(0, wrapIndex);
             line = line.substr(wrapIndex);
 
-            if (!noEscapeHTML) html.push("<pre>");
+            if (!noEscapeHTML) html.push("<code>");
             html.push(noEscapeHTML ? subLine : escapeHTML(subLine));
-            if (!noEscapeHTML) html.push("</pre>");
+            if (!noEscapeHTML) html.push("</code>");
         }
 
-        if (!noEscapeHTML) html.push("<pre>");
+        if (!noEscapeHTML) html.push("<code>");
         html.push(noEscapeHTML ? line : escapeHTML(line));
-        if (!noEscapeHTML) html.push("</pre>");
+        if (!noEscapeHTML) html.push("</code>");
     }
 
-    return html.join("");
+    return html;
 }
 
 this.insertWrappedText = function(text, textBox, noEscapeHTML)
 {
-    textBox.innerHTML = "<pre>" + this.wrapText(text, noEscapeHTML) + "</pre>";
+    var html = this.wrapText(text, noEscapeHTML);
+    textBox.innerHTML = "<pre>" + html.join("") + "</pre>";
 }
 
 // ************************************************************************************************
@@ -1979,7 +1995,7 @@ this.findScriptForFunctionInContext = function(context, fn)
     var fns = fn.toString();
     this.forEachFunction(context, function findMatchingScript(script, aFunction)
     {
-        if (!aFunction.toString || typeof(aFunction.toString) != "function")
+        if (!aFunction['toString'] || typeof(aFunction['toString']) != "function")
             return;
         try {
             var tfs = aFunction.toString();
@@ -2198,20 +2214,26 @@ this.getAllStyleSheets = function(context)
     {
         var sheetLocation =  FBL.getURLForStyleSheet(sheet);
 
-        if (FBL.isSystemURL(sheetLocation) && Firebug.filterSystemURLs)
+        if (!Firebug.showUserAgentCSS && FBL.isSystemURL(sheetLocation))
             return;
 
         if (!sheet.href || !recordedSheets[sheet.href])
         {
             styleSheets.push(sheet);
-
-            for (var i = 0; i < sheet.cssRules.length; ++i)
+            try
             {
-                var rule = sheet.cssRules[i];
-                if (rule instanceof CSSImportRule)
-                    addSheet(rule.styleSheet);
+                for (var i = 0; i < sheet.cssRules.length; ++i)
+                {
+                    var rule = sheet.cssRules[i];
+                    if (rule instanceof CSSImportRule)
+                        addSheet(rule.styleSheet);
+                }
             }
-
+            catch(e)
+            {
+                if (FBTrace.DBG_ERRORS)
+                    FBTrace.sysout("getAllStyleSheets sheet.cssRules FAILS for "+(sheet?sheet.href:"null sheet")+e, e);
+            }
             recordedSheets[sheet.href] = true;
         }
     }
@@ -2351,6 +2373,7 @@ this.updateScriptFiles = function(context, eraseSourceFileMap)  // scan windows 
     var dummySourceFile = new this.NoScriptSourceFile(context, notificationURL);
     context.sourceCache.store(notificationURL, 'reload to see all source files');
     context.addSourceFile(dummySourceFile);
+    context.notificationSourceFile = dummySourceFile;
 
     if (FBTrace.DBG_SOURCEFILES)
     {
@@ -2418,6 +2441,36 @@ this.iterateBrowserTabs = function(browserWindow, callback)
 
     return false;
 }
+
+this.safeGetWindowLocation = function(window)
+{
+    try
+    {
+        if (window)
+        {
+            if (window.closed)
+                return "about:closed";
+            if ("location" in window)
+            {
+                if ("toString" in window.location)
+                    return window.location.toString();
+                else
+                    return "(window.location has no toString)";
+            }
+            else
+                return "(no window.location)";
+        }
+        else
+            return "(no context.window)";
+    }
+    catch(exc)
+    {
+        //if (FBTrace.DBG_WINDOWS || FBTrace.DBG_ERRORS)
+            FBTrace.sysout("TabContext.getWindowLocation failed "+exc, exc);
+            FBTrace.sysout("TabContext.getWindowLocation failed window:", window);
+        return "(getWindowLocation: "+exc+")";
+    }
+};
 
 // ************************************************************************************************
 // JavaScript Parsing
@@ -2568,7 +2621,7 @@ this.dispatch = function(listeners, name, args)
                             exc.stack = stack.split('\n');
                         }
                         var culprit = listeners[i] ? listeners[i].dispatchName : null;
-                        FBTrace.sysout(" Exception in lib.dispatch "+(culprit?culprit+".":"")+ name+": "+exc, exc);
+                        FBTrace.sysout(" Exception in lib.dispatch "+(culprit?culprit+".":"")+ name+": "+exc+(exc.fileName?exc.fileName:"")+(exc.lineNumber?":"+exc.lineNumber:""), exc);
                     }
                 }
             }
@@ -4005,7 +4058,7 @@ this.SourceFile.prototype =
 
         return (scripts.length > 0) ? scripts : false;
     },
-
+    // TODO XXXjjb the scripts are probably ordered, at least do a binary search
     addScriptAtLineNumber: function(scripts, script, targetLineNo, mustBeExecutableLine, offset)
     {
         // script.isValid will be true.
@@ -4190,7 +4243,8 @@ this.addScriptsToSourceFile = function(sourceFile, outerScript, innerScripts)
 //------------
 this.EvalLevelSourceFile = function(url, script, eval_expr, source, mapType, innerScriptEnumerator) // ctor
 {
-    this.href = url;
+    this.href = url.href;
+    this.hrefKind = url.kind;
     this.outerScript = script;
     this.containingURL = script.fileName;
     this.evalExpression = eval_expr;
@@ -4232,7 +4286,7 @@ this.EvalLevelSourceFile.prototype.getBaseLineOffset = function()
 
 this.EvalLevelSourceFile.prototype.getObjectDescription = function()
 {
-    if (this.href.kind == "source" || this.href.kind == "data")
+    if (this.hrefKind == "source" || this.hrefKind == "data")
         return FBL.splitURLBase(this.href);
 
     if (!this.summary)
@@ -4527,7 +4581,7 @@ this.getSourceFileByScript = function(context, script)
         return lucky;
 
     if (FBTrace.DBG_SOURCEFILES)
-        FBTrace.sysout("getSourceFileByScript looking for "+script.tag+" in "+context.getName()+": ", context.sourceFileMap);
+        FBTrace.sysout("getSourceFileByScript looking for "+script.tag+"@"+script.fileName+" in "+context.getName()+": ", context.sourceFileMap);
 
     for (var url in context.sourceFileMap)
     {
@@ -4541,7 +4595,7 @@ this.getScriptAnalyzer = function(context, script)
 {
     var sourceFile = this.getSourceFileByScript(context, script);
     if (FBTrace.DBG_STACK)
-        FBTrace.sysout("getScriptAnalyzer finds sourceFile: ", sourceFile);
+        FBTrace.sysout("getScriptAnalyzer "+ (sourceFile?"finds sourceFile: ":"FAILS to find sourceFile"), sourceFile);
     if (sourceFile)
     {
         var analyzer = sourceFile.getScriptAnalyzer(script);

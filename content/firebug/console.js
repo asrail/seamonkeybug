@@ -132,7 +132,7 @@ Firebug.Console = extend(ActivableConsole,
                 var r = Firebug.CommandLine.evaluateInWebPage(elementForcer, context, win);
 
             if (FBTrace.DBG_CONSOLE)
-                FBTrace.sysout("getFirebugConsoleElement forcing element result ", r);
+                FBTrace.sysout("getFirebugConsoleElement forcing element result "+r, r);
 
             var element = win.document.getElementById("_firebugConsole");
             if (!element) // elementForce fails
@@ -145,7 +145,7 @@ Firebug.Console = extend(ActivableConsole,
         return element;
     },
 
-    isReadyElsePreparing: function(context, win)
+    isReadyElsePreparing: function(context, win) // this is the only code that should call injector.attachIfNeeded
     {
         if (FBTrace.DBG_CONSOLE)
             FBTrace.sysout("console.isReadyElsePreparing, win is "+(win?"an argument: ":"null, context.window: ")+(win?win.location:context.window.location), (win?win:context.window));
@@ -183,24 +183,13 @@ Firebug.Console = extend(ActivableConsole,
     {
         Firebug.ActivableModule.initContext.apply(this, arguments);
 
-        // Create limit row. This row is the first in the list of entries
-        // and initially hidden. It's displayed as soon as the number of
-        // entries reache the limit.
-        var panel = context.getPanel(this.panelName);
-        var row = panel.createRow("limitRow");
+        this.insertLogLimit(context);
 
-        var limitInfo = {
-            totalCount: 0,
-            limitPrefsTitle: $STRF("LimitPrefsTitle", [Firebug.prefDomain+".console.logLimit"])
-        };
-
-        var netLimitRep = Firebug.NetMonitor.NetLimit;
-        var nodes = netLimitRep.createTable(row, limitInfo);
-
-        panel.limit = nodes[1];
-
-        var container = panel.panelNode;
-        container.insertBefore(nodes[0], container.firstChild);
+        if (Firebug.Console.isAlwaysEnabled())  // put the message in, we will clear if the window console is injected.
+        {
+            Firebug.Console.log($STR("message.Reload to activate window console"), context, "info");
+            context.consoleWarning = true;
+        }
     },
 
     showContext: function(browser, context)
@@ -292,6 +281,28 @@ Firebug.Console = extend(ActivableConsole,
 
         if (this.isAlwaysEnabled())
             return Firebug.ConsoleBase.logRow.apply(this, arguments);
+    },
+
+    insertLogLimit: function(context)
+    {
+        // Create limit row. This row is the first in the list of entries
+        // and initially hidden. It's displayed as soon as the number of
+        // entries reaches the limit.
+        var panel = context.getPanel(this.panelName);
+        var row = panel.createRow("limitRow");
+
+        var limitInfo = {
+            totalCount: 0,
+            limitPrefsTitle: $STRF("LimitPrefsTitle", [Firebug.prefDomain+".console.logLimit"])
+        };
+
+        var netLimitRep = Firebug.NetMonitor.NetLimit;
+        var nodes = netLimitRep.createTable(row, limitInfo);
+
+        panel.limit = nodes[1];
+
+        var container = panel.panelNode;
+        container.insertBefore(nodes[0], container.firstChild);
     }
 });
 
@@ -312,7 +323,7 @@ Firebug.ConsolePanel = function () {} // XXjjb attach Firebug so this panel can 
 
 Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
 {
-    wasScrolledToBottom: true,
+    wasScrolledToBottom: false,
     messageCount: 0,
     lastLogTime: 0,
     groups: null,
@@ -350,7 +361,12 @@ Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
     clear: function()
     {
         if (this.panelNode)
+        {
+            if (FBTrace.DBG_CONSOLE)
+                FBTrace.sysout("ConsolePanel.clear");
             clearNode(this.panelNode);
+            Firebug.Console.insertLogLimit(this.context);
+        }
     },
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
@@ -405,7 +421,10 @@ Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
             if (part && typeof(part) == "object")
             {
                 var object = objects[++objIndex];
-                this.appendObject(object, row, part.rep);
+                if (typeof(object) != "undefined")
+                    this.appendObject(object, row, part.rep);
+                else
+                    this.appendObject(part.type, row, FirebugReps.Text);
             }
             else
                 FirebugReps.Text.tag.append({object: part}, row);
@@ -437,7 +456,6 @@ Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
         else
             this.appendFormatted(objects, innerRow, rep);
         row.appendChild(innerRow);
-        innerRow.setAttribute('aria-expanded', 'true');
         dispatch([Firebug.A11yModel], 'onLogRowCreated', [this, innerRow]);
         var groupBody = this.createRow("logGroupBody");
         row.appendChild(groupBody);
@@ -508,6 +526,8 @@ Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
              Firebug.Console.disabledPanelPage.hide(this);
              this.showCommandLine(true);
              this.showToolbarButtons("fbConsoleButtons", true);
+             if (this.wasScrolledToBottom)
+                 scrollToBottom(this.panelNode);
         }
         else
         {
@@ -603,14 +623,16 @@ Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
 
         var logRow = search.find(text);
         if (!logRow)
+        {
+            dispatch([Firebug.A11yModel], 'onConsoleSearchMatchFound', [this, text, []]);
             return false;
-
+        }
         for (; logRow; logRow = search.findNext())
         {
             setClass(logRow, "matched");
             this.matchSet.push(logRow);
         }
-
+        dispatch([Firebug.A11yModel], 'onConsoleSearchMatchFound', [this, text, this.matchSet]);
         return true;
     },
 
@@ -703,7 +725,7 @@ Firebug.ConsolePanel.prototype = extend(Firebug.ActivablePanel,
         {
             // Make sure that entire content of the Console panel is hidden when
             // the panel is disabled.
-            Firebug.CommandLine.setMultiLine(false, Firebug.chrome);
+            Firebug.CommandLine.setMultiLine(false, Firebug.chrome, Firebug.largeCommandLine);
             collapse(Firebug.chrome.$("fbCommandBox"), true);
         }
     },
@@ -747,14 +769,13 @@ function parseFormat(format)
             }
 
             parts.push(format.substr(0, m[0][0] == "%" ? m.index : m.index+1));
-            parts.push({rep: rep, precision: precision});
+            parts.push({rep: rep, precision: precision, type: ("%" + type)});
         }
 
         format = format.substr(m.index+m[0].length);
     }
 
     parts.push(format);
-
     return parts;
 }
 

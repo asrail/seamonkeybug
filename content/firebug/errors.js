@@ -223,7 +223,7 @@ var Errors = Firebug.Errors = extend(Firebug.Module,
         else if (checkForUncaughtException(context, object))
         {
             context = getExceptionContext(context);
-            correctLineNumbersOnExceptions(context, object);
+            object = correctLineNumbersOnExceptions(context, object);
         }
 
         if (lessTalkMoreAction(context, object, isWarning))
@@ -258,8 +258,8 @@ var Errors = Firebug.Errors = extend(Firebug.Module,
         var stack_frame = trace.frames[0];
         if (stack_frame)
         {
-            sourceName = stack_frame.href;
-            lineNumber = stack_frame.lineNo;
+            var sourceName = stack_frame.href;
+            var lineNumber = stack_frame.lineNo;
 
             var correctedError =
             {
@@ -286,6 +286,9 @@ var Errors = Firebug.Errors = extend(Firebug.Module,
     getErrorContext: function(object)
     {
         var url = object.sourceName;
+        if(!url)
+            return FirebugContext;  // eg some XPCOM messages
+
         var errorContext = this.contextCache[url];
 
         if (errorContext)
@@ -355,6 +358,36 @@ var Errors = Firebug.Errors = extend(Firebug.Module,
         }
         this.showCount(0);
     },
+    // ******************************************************************************
+
+    reparseXPC: function(errorMessage, context)
+    {
+        var reXPCError = /JavaScript Error:\s*\"([^\"]*)\"/;
+        var reFile = /file:\s*\"([^\"]*)\"/;
+        var reLine = /line:\s*(\d*)/;
+        var m = reXPCError.exec(errorMessage);
+        if (!m)
+            return null;
+        var msg = m[1];
+
+        var sourceFile = null;
+        m = reFile.exec(errorMessage);
+        if (m)
+            sourceFile = m[1];
+
+        var sourceLineNo = 0;
+        m = reLine.exec(errorMessage);
+        if (m)
+            sourceLineNo = m[1];
+
+        var sourceLine = null;
+        if (sourceFile && sourceLineNo && sourceLineNo != 0)
+            sourceLine = context.sourceCache.getLine(sourceFile, sourceLineNo);
+
+        var error = new ErrorMessage(msg, sourceFile,
+                sourceLineNo, sourceLine, "error", context, null);
+        return error;
+    }
 });
 
 // ************************************************************************************************
@@ -560,25 +593,27 @@ function correctLineNumbersOnExceptions(context, object)
         var nsresult = m[2];
         if (nsresult)
             errorMessage += " ("+nsresult+")";
-        sourceName = m[3];
-        lineNumber = m[4];
+        var sourceName = m[3];
+        var lineNumber = parseInt(m[4]);
 
         var correctedError =
         {
                 errorMessage: object.errorMessage,
-                dsourceName: sourceName,
+                sourceName: sourceName,
                 sourceLine: object.sourceLine,
                 lineNumber: lineNumber,
                 columnNumber: object.columnNumber,
                 flags: object.flags,
-                categor: object.category
+                category: object.category
         };
-        object = correctedError;
 
         if (FBTrace.DBG_ERRORS)
-            FBTrace.sysout("errors.correctLineNumbersOnExceptions corrected message with sourceName: "+sourceName);
+            FBTrace.sysout("errors.correctLineNumbersOnExceptions corrected message with sourceName: "+sourceName+"@"+lineNumber);
 
+        return correctedError;
     }
+    else
+        return object;
 }
 
 // ************************************************************************************************

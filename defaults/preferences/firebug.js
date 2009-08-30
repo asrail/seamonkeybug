@@ -7,14 +7,17 @@ pref("extensions.firebug.showInfoTips", true);
 pref("extensions.firebug.largeCommandLine", false);
 pref("extensions.firebug.textWrapWidth", 100);
 pref("extensions.firebug.openInWindow", false);
+pref("extensions.firebug.previousPlacement", 0);
 pref("extensions.firebug.showErrorCount", true);
 pref("extensions.firebug.viewPanelOrient", "vertical");
+pref("extensions.firebug.allPagesActivation", "none");
 
 pref("extensions.firebug.preferEnabled.Console", false);
 pref("extensions.firebug.preferEnabled.Script", false);
 pref("extensions.firebug.preferEnabled.Net", false);
 
 pref("extensions.firebug.allowDoublePost", false);
+pref("extensions.firebug.activateSameOrigin", true);
 
 // Search
 pref("extensions.firebug.searchCaseSensitive", false);

@@ -37,7 +37,6 @@ var panelBox, panelSplitter, sidePanelDeck, panelBar1, panelBar2, locationList, 
 var waitingPanelBarCount = 2;
 
 var inDetachedScope = (window.location == "chrome://firebug/content/firebug.xul");
-var externalBrowser = null;
 
 var disabledHead = null;
 var disabledCaption = null;
@@ -140,9 +139,6 @@ top.FirebugChrome =
             if (window.arguments)
                 var detachArgs = window.arguments[0];
 
-            if (detachArgs)
-                externalBrowser = detachArgs.browser;// else undefined
-
             this.applyTextSize(Firebug.textSize);
 
             var doc1 = panelBar1.browser.contentDocument;
@@ -170,7 +166,7 @@ top.FirebugChrome =
             this.updatePanelBar1(Firebug.panelTypes);
 
             if (inDetachedScope)
-                this.attachBrowser(externalBrowser, FirebugContext);
+                this.attachBrowser(FirebugContext);
             else
                 Firebug.initializeUI(detachArgs);
 
@@ -201,7 +197,7 @@ top.FirebugChrome =
 
         window.removeEventListener("blur", onBlur, true);
         if (inDetachedScope)
-            this.detachBrowser(externalBrowser);
+            this.undetach();
         else
             Firebug.shutdown();
     },
@@ -221,7 +217,7 @@ top.FirebugChrome =
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    attachBrowser: function(browser, context)  // XXXjjb context == (FirebugContext || null)  and inDetachedScope == true
+    attachBrowser: function(context)  // XXXjjb context == (FirebugContext || null)  and inDetachedScope == true
     {
         if (FBTrace.DBG_ACTIVATION)
             FBTrace.sysout("chrome.attachBrowser with inDetachedScope="+inDetachedScope+" context="+context
@@ -231,6 +227,10 @@ top.FirebugChrome =
         {
             Firebug.setChrome(this, "detached"); // 1.4
 
+            FBL.collapse($("fbMinimizeButton"), true);  // Closing the external window will minimize
+            FBL.collapse($("fbDetachButton"), true);    // we are already detached.
+
+            var browser = context ? context.browser : this.getCurrentBrowser();
             Firebug.showContext(browser, context);
 
             if (FBTrace.DBG_WINDOWS)
@@ -239,46 +239,40 @@ top.FirebugChrome =
 
     },
 
-    detachBrowser: function(browser)
+    undetach: function()
     {
         var detachedChrome = Firebug.chrome;
-        Firebug.setChrome(Firebug.originalChrome, "none");
-        Firebug.closeDetachedWindow(true);
+        Firebug.setChrome(Firebug.originalChrome, "minimized");
+
+        Firebug.showBar(false);
+        Firebug.resetTooltip();
 
         // when we are done here the window.closed will be true so we don't want to hang on to the ref.
         detachedChrome.window = "This is detached chrome!";
     },
 
+    disableOff: function(collapse)
+    {
+        FBL.collapse($("fbCloseButton"), collapse);  // disable/enable this button in the Firebug.chrome window.
+    },
+
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+    getBrowsers: function()
+    {
+          return Firebug.tabBrowser.browsers;
+    },
 
     getCurrentBrowser: function()
     {
-        return externalBrowser ? externalBrowser : Firebug.tabBrowser.selectedBrowser;
+        return Firebug.tabBrowser.selectedBrowser;
     },
 
     getCurrentURI: function()
     {
         try
         {
-            if (externalBrowser)
-                return externalBrowser.currentURI;
-            else
-                return Firebug.tabBrowser.currentURI;
-        }
-        catch (exc)
-        {
-            return null;
-        }
-    },
-
-    getBrowserURI: function(context)
-    {
-        try
-        {
-            if (externalBrowser)
-                return externalBrowser.currentURI;
-            if (context && context.browser)
-                return context.browser.currentURI;
+            return Firebug.tabBrowser.currentURI;
         }
         catch (exc)
         {
@@ -361,6 +355,11 @@ top.FirebugChrome =
         var winMediator = CCSV("@mozilla.org/appshell/window-mediator;1", "nsIWindowMediator");
 
         return winMediator.getMostRecentWindow(null) == window;
+    },
+
+    isOpen: function()
+    {
+        return !($("fbContentBox").collapsed);
     },
 
     reload: function(skipCache)
@@ -502,7 +501,8 @@ top.FirebugChrome =
         this.previouslyFocused = Firebug.isDetached() && this.isFocused();  // TODO previouslyMinimized
 
         var switchPanel = this.selectPanel(switchToPanelName);
-        this.previousObject = switchPanel.selection;
+        if (switchPanel)
+            this.previousObject = switchPanel.selection;
         return switchPanel;
     },
 
@@ -513,7 +513,7 @@ top.FirebugChrome =
         if (this.previouslyFocused)
             this.focus();
 
-        if (cancelled)  // revert
+        if (cancelled && this.previousPanelName)  // revert
         {
             if (this.previouslyCollapsed)
                 Firebug.showBar(false);
@@ -525,7 +525,9 @@ top.FirebugChrome =
         }
         else // else stay on the switchToPanel
         {
-            this.select(switchToPanel.selection);
+            this.selectPanel(switchToPanelName);
+            if (switchToPanel.selection)
+                this.select(switchToPanel.selection);
             this.getSelectedPanel().panelNode.focus();
         }
 
@@ -545,7 +547,7 @@ top.FirebugChrome =
         // a function that returns an object with .getObjectDescription() and .getLocationList()
         return function getSelectedPanelFromCurrentContext()
         {
-            return FirebugContext.chrome.getSelectedPanel();  // panels provide location, use the selected panel
+            return Firebug.chrome.getSelectedPanel();  // panels provide location, use the selected panel
         }
     },
 
@@ -597,7 +599,7 @@ top.FirebugChrome =
             panelBar1.selectPanel(null, true);
         }
 
-        if (externalBrowser)
+        if (Firebug.isDetached())
             this.syncTitle();
     },
 
@@ -933,13 +935,11 @@ top.FirebugChrome =
 
         FBL.eraseNode(popup);
 
-        /*
         if (!this.contextMenuObject && !$("cmd_copy").getAttribute("disabled"))
         {
             var menuitem = FBL.createMenuItem(popup, {label: "Copy"});
             menuitem.setAttribute("command", "cmd_copy");
         }
-        */
 
         var object;
         if (this.contextMenuObject)
@@ -1115,6 +1115,28 @@ top.FirebugChrome =
         var extensionManager = CCSV("@mozilla.org/extensions/manager;1", "nsIExtensionManager");
         openDialog("chrome://mozapps/content/extensions/about.xul", "",
             "chrome,centerscreen,modal", "urn:mozilla:item:firebug@software.joehewitt.com", extensionManager.datasource);
+    },
+
+    resume: function(context)
+    {
+        if (!context)
+        {
+            FBTrace.sysout("Firebug chrome: resume with no context??");
+            return;
+        }
+
+        var panel = panelBar1.selectedPanel;
+        if (!panel)
+            return;
+
+        if (!context.stopped && panel.resume)
+        {
+            panel.resume();
+            return;
+        }
+
+        // Use debugger as the default handler.
+        Firebug.Debugger.resume(context);
     }
 };
 

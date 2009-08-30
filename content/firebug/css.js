@@ -1040,10 +1040,14 @@ Firebug.CSSStyleSheetPanel.prototype = extend(Firebug.SourceBoxPanel,
         {
             this.document.defaultView.getSelection().selectAllChildren(row);
             scrollIntoCenterView(row, this.panelNode);
+            dispatch([Firebug.A11yModel], 'onCSSSearchMatchFound', [this, text, row]);
             return true;
         }
         else
+        {
+            dispatch([Firebug.A11yModel], 'onCSSSearchMatchFound', [this, text, null]);
             return false;
+        }
     },
 
     getSearchOptionsMenuItems: function()
@@ -1064,13 +1068,13 @@ CSSElementPanel.prototype = extend(Firebug.CSSStyleSheetPanel.prototype,
     template: domplate(
     {
         cascadedTag:
-            DIV({},
-                DIV({role : 'list'},
+            DIV({role : 'presentation'},
+                DIV({role : 'list', 'aria-label' : 'style rules' },
                     FOR("rule", "$rules",
                         TAG("$ruleTag", {rule: "$rule"})
                     )
                 ),
-                DIV({role : "list"},
+                DIV({role : "list", 'aria-label' :'inherited style rules'},
                     FOR("section", "$inherited",
 
                         H1({class: "cssInheritHeader groupHeader focusRow", role : 'listitem' },
@@ -1110,16 +1114,18 @@ CSSElementPanel.prototype = extend(Firebug.CSSStyleSheetPanel.prototype,
             ),
 
         computedTag:
-            DIV({},
+            DIV({role : "list", "aria-label" : "computed styles"},
                 FOR("group", "$groups",
-                    H1({class: "cssInheritHeader groupHeader focusRow"},
+                    H1({class: "cssInheritHeader groupHeader focusRow", role : "listitem"},
                         SPAN({class: "cssInheritLabel"}, "$group.title")
                     ),
-                    TABLE({width: "100%", role : 'list'},
-                        FOR("prop", "$group.props",
-                            TR({class : 'focusRow', role : 'listitem'},
-                                TD({class: "stylePropName", role : 'presentation'}, "$prop.name"),
-                                TD({class: "stylePropValue", role : 'presentation'}, "$prop.value")
+                    TABLE({width: "100%", role : 'group'},
+                        TBODY({role : 'presentation'},
+                            FOR("prop", "$group.props",
+                                TR({class : 'focusRow', role : 'listitem'},
+                                    TD({class: "stylePropName", role : 'presentation'}, "$prop.name"),
+                                    TD({class: "stylePropValue", role : 'presentation'}, "$prop.value")
+                                )
                             )
                         )
                     )
@@ -1312,7 +1318,31 @@ CSSElementPanel.prototype = extend(Firebug.CSSStyleSheetPanel.prototype,
 
     show: function(state)
     {
-        // Do nothing, and don't call superclass
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=500365
+        // This voodoo touches each style sheet to force some Firefox internal change to allow edits.
+        if (!this.context.forcedUniqueStyleSheets)
+        {
+            if (this.context.loaded)  // keep forcing until we are loaded
+                this.context.forcedUniqueStyleSheets = true;
+
+            var styleSheets = getAllStyleSheets(this.context);
+            for(var i = 0; i < styleSheets.length; i++)
+            {
+                try
+                {
+                    var rules = styleSheets[i].cssRules;
+                    if (rules.length > 0)
+                        var touch = rules[0];
+                    if (FBTrace.DBG_CSS && touch)
+                        FBTrace.sysout("css.show() touch "+typeof(touch)+" in "+(styleSheets[i].href?styleSheets[i].href:this.context.getName()));
+                }
+                catch(e)
+                {
+                    if (FBTrace.DBG_ERRORS)
+                        FBTrace.sysout("css.show: sheet.cssRules FAILS for "+(styleSheets[i]?styleSheets[i].href:"null sheet")+e, e);
+                }
+            }
+        }
     },
 
     supportsObject: function(object)
@@ -1548,7 +1578,7 @@ CSSRuleEditor.prototype = domplate(Firebug.InlineEditor.prototype,
             }
             catch (err)
             {
-                if (FBTrace.DBG_CSS) FBTrace.sysout("CSS Insert Error: ", err);
+                if (FBTrace.DBG_CSS || FBTrace.DBG_ERRORS) FBTrace.sysout("CSS Insert Error: "+err, err);
                 target.innerHTML = escapeHTML(previousValue);
                 row.repObject = undefined;
                 return;

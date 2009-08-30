@@ -39,7 +39,7 @@
         <command id="cmd_focusWatchEditor" oncommand="if (FirebugContext) Firebug.Debugger.focusWatch(FirebugContext);"/>
         <command id="cmd_focusLocation" oncommand="if (FirebugContext) FirebugChrome.focusLocationList(FirebugContext);"/>
 
-        <command id="cmd_resumeExecution" oncommand="Firebug.Debugger.resume(FirebugContext)" breakable="true"/>
+        <command id="cmd_resumeExecution" oncommand="FirebugChrome.resume(FirebugContext)" breakable="disabled"/>
         <command id="cmd_stepOver" oncommand="Firebug.Debugger.stepOver(FirebugContext)" disabled="true"/>
         <command id="cmd_stepInto" oncommand="Firebug.Debugger.stepInto(FirebugContext)" disabled="true"/>
         <command id="cmd_stepOut" oncommand="Firebug.Debugger.stepOut(FirebugContext)" disabled="true"/>
@@ -93,7 +93,7 @@
 
     <popupset id="contentAreaContextSet">
         <popup id="fbContextMenu" onpopupshowing="return FirebugChrome.onContextShowing(event);">
-            <!-- <menuitem label="&copyCmd.label;" accesskey="&copyCmd.accesskey;" command="cmd_copy"/> -->
+            <menuitem label="&copyCmd.label;" accesskey="&copyCmd.accesskey;" command="cmd_copy"/>
         </popup>
         <tooltip id="fbTooltip" class="fbURLMenuItem" onpopupshowing="return FirebugChrome.onTooltipShowing(event);"/>
     </popupset>
@@ -116,12 +116,12 @@
                         <!-- HTML Inspector -->
                         <toolbarbutton id="fbInspectButton" tooltiptext="&firebug.InspectTooltip;"
                                 command="cmd_toggleInspecting" collapsed="false">
-                            <image src="chrome://firebug/skin/flashlight.png"/>
+                            <image src="chrome://firebug/skin/Templarian_inspector.png"/>
                         </toolbarbutton>
 
                         <!-- Break On Next -->
                         <toolbarbutton id="fbBreakOnNextButton" command="cmd_resumeExecution"
-                                tooltiptext="script.Break On Next" class="toolbar-image-button" />
+                                tooltiptext="script.Break On Next" breakable="disabled" />
                     </hbox>
 
                     <!-- Tab Bar -->
@@ -138,14 +138,14 @@
 
                     <!-- Open In New Window & Minimize & Close -->
                     <hbox id="fbWindowButtons" role="toolbar" class="innerToolbar" aria-label="firebug window">
+
                         <toolbarbutton id="fbMinimizeButton" class="toolbarbutton-iconic"
                             tooltiptext="Minimize Firebug" command="cmd_minimizeFirebug"/>
-
                         <toolbarbutton id="fbDetachButton" class="toolbarbutton-iconic"
                             tooltiptext="&firebug.DetachFirebug;" command="cmd_detachFirebug"/>
-
-                        <toolbarbutton id="fbCloseButton" class="toolbarbutton-iconic"
+                        <toolbarbutton id="fbCloseButton" label="Off" class="toolbar-text-button"
                             tooltiptext="&firebug.CloseFirebug;" command="cmd_closeFirebug"/>
+
                     </hbox>
                 </hbox>
 
@@ -230,7 +230,7 @@
                                     <toolbarseparator id="fbLocationSeparator" collapsed="true"/>
                                     <hbox id="fbLocationList" locationProvider="FirebugChrome.getLocationProvider();"
                                           collapsed="true" labeltooltip="fbTooltip" labelcontextmenu="fbContextMenu"
-                                          class="noTabStop"></hbox>
+                                          class="noTabStop" role="button" aria-haspopup="true" aria-label="file selector"/>
 
                                     <toolbarseparator id="fbStatusSeparator" collapsed="true"/>
                                     <panelStatus id="fbPanelStatus" flex="1"
@@ -254,7 +254,8 @@
                             <browser id="fbPanelBar1-browser"
                                      tooltip="fbTooltip" contextmenu="fbContextMenu"
                                      disablehistory="true"
-                                     src="chrome://firebug/content/panel.html"/>
+                                     src="chrome://firebug/content/panel.html"
+                                     role="tabpanel" />
                         </deck>
                     </vbox>
 
@@ -270,12 +271,13 @@
                                 <browser id="fbPanelBar2-browser"
                                          tooltip="fbTooltip" contextmenu="fbContextMenu"
                                          disablehistory="true"
-                                         src="chrome://firebug/content/panel.html"/>
+                                         src="chrome://firebug/content/panel.html"
+                                         role="tabpanel" />
                             </deck>
                         </panelBar>
 
                         <vbox id="fbLargeCommandBox">
-                            <textbox id="fbLargeCommandLine" multiline="true" flex="1"
+                            <textbox id="fbLargeCommandLine" multiline="true" flex="1" newlines="pasteintact"
                                      label="LargeCommandLine" />
                             <hbox id="fbCommandToolbar">
                                 <toolbarbutton label="&firebug.Run;" class="toolbar-text-button"
@@ -352,9 +354,13 @@
                               oncommand="FirebugChrome.onToggleOption(this)"
                               option="shadeBoxModel"/>
                     <menuitem type="checkbox" id="menu_enableA11y"
-                              label="Firebug.menu.Enable Accessibility Enhancements"
+                              label="firebug.menu.Enable Accessibility Enhancements"
                               oncommand="FirebugChrome.onToggleOption(this)"
                               option="a11y.enable"/>
+                    <menuitem type="checkbox" id="menu_activateSameOrigin"
+                              label="firebug.menu.Activate Same Origin URLs"
+                              oncommand="FirebugChrome.onToggleOption(this)"
+                              option="activateSameOrigin"/>
                     <menuseparator id="menu_optionsSeparator"/>
                     <menuitem id="menu_resetAllOptions"
                               label="firebug.menu.Reset All Firebug Options"
@@ -389,7 +395,7 @@
             <menuseparator id="menu_toolsSeparator"/>
 
             <menuitem id="menu_customizeShortcuts"
-                      label="Firebug.menu.Customize shortcuts"
+                      label="firebug.menu.Customize shortcuts"
                       command="cmd_customizeFBKeys" key="key_customizeFBKeys" />
 
             <menuseparator id="menu_aboutSeparator"/>

@@ -200,7 +200,8 @@ Firebug.Editor = extend(Firebug.Module,
         }
         catch (exc)
         {
-            ERROR(exc);
+            if (FBTrace.DBG_ERRORS)
+                FBTrace.sysout("editor.save FAILS "+exc, exc);
         }
     },
 

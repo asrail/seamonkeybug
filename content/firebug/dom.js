@@ -68,7 +68,7 @@ const SizerRow =
 const DirTablePlate = domplate(Firebug.Rep,
 {
     tag:
-        TABLE({class: "domTable", cellpadding: 0, cellspacing: 0, onclick: "$onClick", role :"tree"},
+        TABLE({class: "domTable", cellpadding: 0, cellspacing: 0, onclick: "$onClick", role :"tree", 'aria-label' : 'DOM properties'},
             TBODY({role: 'presentation'},
                 SizerRow,
                 FOR("member", "$object|memberIterator", RowTag)
@@ -86,7 +86,7 @@ const DirTablePlate = domplate(Firebug.Rep,
 
     tableTag:
         TABLE({class: "domTable", cellpadding: 0, cellspacing: 0,
-            _toggles: "$toggles", _domPanel: "$domPanel", onclick: "$onClick", role : 'tree'},
+            _toggles: "$toggles", _domPanel: "$domPanel", onclick: "$onClick", role : 'tree', 'aria-label' : 'DOM properties'},
             TBODY({role : 'presentation'},
                 SizerRow
             )
@@ -401,15 +401,15 @@ Firebug.DOMBasePanel.prototype = extend(Firebug.ActivablePanel,
         {
             if (this.context.stopped)
                 Firebug.Editor.startEditing(row, "");
-            else if (Firebug.Console.isAlwaysEnabled())
+            else if (Firebug.Console.isAlwaysEnabled())  // not stopped in debugger, need command line
             {
-                if (Firebug.CommandLine.isReadyElsePreparing(this.context))
+                if (Firebug.CommandLine.onCommandLineFocus())
                     Firebug.Editor.startEditing(row, "");
                 else
-                    row.innerHTML = $STR("command line blocked?");
+                    row.innerHTML = $STR("warning.Command line blocked?");
             }
             else
-                row.innerHTML = $STR("Console must be enabled");
+                row.innerHTML = $STR("warning.Console must be enabled");
         }
         else if (hasClass(row, "watchRow"))
             Firebug.Editor.startEditing(row, getRowName(row));
@@ -474,7 +474,7 @@ Firebug.DOMBasePanel.prototype = extend(Firebug.ActivablePanel,
         if(FBTrace.DBG_DOM)
         {
             FBTrace.sysout("row: "+row);
-            FBTrace.sysout("value: "+value);
+            FBTrace.sysout("value: "+value+" type "+typeof(value), value);
         }
 
         var name = getRowName(row);
@@ -489,12 +489,16 @@ Firebug.DOMBasePanel.prototype = extend(Firebug.ActivablePanel,
              Firebug.CommandLine.evaluate(value, this.context, object, this.context.getGlobalScope(),
                  function success(result, context)
                  {
+                     if (FBTrace.DBG_DOM)
+                         FBTrace.sysout("setPropertyValue evaluate success object["+name+"]="+result+" type "+typeof(result), result);
                      object[name] = result;
                  },
-                 function failed(result, context)
+                 function failed(exc, context)
                  {
                      try
                      {
+                         if (FBTrace.DBG_DOM)
+                              FBTrace.sysout("setPropertyValue evaluate failed with exc:"+exc+" object["+name+"]="+value+" type "+typeof(value), exc);
                          // If the value doesn't parse, then just store it as a string.  Some users will
                          // not realize they're supposed to enter a JavaScript expression and just type
                          // literal text
@@ -957,10 +961,14 @@ DOMMainPanel.prototype = extend(Firebug.DOMBasePanel.prototype,
             scrollIntoCenterView(row, this.panelNode);
 
             this.highlightRow(row);
+            dispatch([Firebug.A11yModel], 'onDomSearchMatchFound', [this, text, row]);
             return true;
         }
         else
+        {
+            dispatch([Firebug.A11yModel], 'onDomSearchMatchFound', [this, text, null]);
             return false;
+        }
     }
 });
 
@@ -1177,8 +1185,7 @@ WatchPanel.prototype = extend(Firebug.DOMBasePanel.prototype,
 
         var members = [];
 
-        var showWatches = this.context.onLoadWindowContent || this.context.stopped;
-        if (this.watches && showWatches)
+        if (this.watches)
         {
             for (var i = 0; i < this.watches.length; ++i)
             {

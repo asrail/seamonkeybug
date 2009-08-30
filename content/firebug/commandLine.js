@@ -36,11 +36,14 @@ Firebug.CommandLine = extend(Firebug.Module,
       // The command-line requires that the console has been initialized first,
       // so make sure that's so.  This call should have no effect if the console
       // is already initialized.
-      Firebug.Console.isReadyElsePreparing(context, win);
+      var consoleIsReady = Firebug.Console.isReadyElsePreparing(context, win);
       
       // Make sure the command-line is initialized.  This call should have no
       // effect if the command-line is already initialized.
-      Firebug.CommandLine.isReadyElsePreparing(context, win); 
+      var commandLineIsReady = Firebug.CommandLine.isReadyElsePreparing(context, win);
+
+      if (FBTrace.DBG_CONSOLE)
+          FBTrace.sysout("initializeCommandLineIfNeeded console ready: "+consoleIsReady +" commandLine ready: "+commandLineIsReady);
     },
 
     evaluate: function(expr, context, thisValue, targetWindow, successConsoleFunction, exceptionFunction) // returns user-level wrapped object I guess.
@@ -65,7 +68,7 @@ Firebug.CommandLine = extend(Firebug.Module,
         catch (exc)  // XXX jjb, I don't expect this to be taken, the try here is for the finally
         {
             if (FBTrace.DBG_ERRORS)
-                FBTrace.sysout("CommandLine.evaluate with context.stopped:"+context.stopped+" FAILS:", exc);
+                FBTrace.sysout("CommandLine.evaluate with context.stopped:"+context.stopped+" FAILS:"+exc, exc);
         }
         finally
         {
@@ -349,7 +352,9 @@ Firebug.CommandLine = extend(Firebug.Module,
         else
             Firebug.toggleBar(true);
 
-        if (context.panelName != "console")
+        if (!context.panelName)
+            Firebug.chrome.selectPanel("console");
+        else if (context.panelName != "console")
         {
             Firebug.chrome.switchToPanel(context, "console");
 
@@ -390,7 +395,7 @@ Firebug.CommandLine = extend(Firebug.Module,
         context.commandLineText = commandLine.value;
     },
 
-    setMultiLine: function(multiLine, chrome)
+    setMultiLine: function(multiLine, chrome, saveMultiLine)
     {
         if (FirebugContext && FirebugContext.panelName != "console")
             return;
@@ -404,6 +409,12 @@ Firebug.CommandLine = extend(Firebug.Module,
 
         var commandLineSmall = chrome.$("fbCommandLine");
         var commandLineLarge = chrome.$("fbLargeCommandLine");
+
+        if (saveMultiLine)  // we are just closing the view
+        {
+            commandLineSmall.value = commandLineLarge.value;
+            return;
+        }
 
         if (multiLine)
             commandLineLarge.value = cleanIndentation(commandLineSmall.value);
@@ -577,7 +588,7 @@ Firebug.CommandLine = extend(Firebug.Module,
 
         if (!Firebug.CommandLine.isAttached(FirebugContext))
         {
-            Firebug.CommandLine.isReadyElsePreparing(FirebugContext);
+            return Firebug.CommandLine.isReadyElsePreparing(FirebugContext);
         }
         else
         {
@@ -593,6 +604,7 @@ Firebug.CommandLine = extend(Firebug.Module,
                     FBTrace.sysout("onCommandLineFocus, did NOT attachCommandLine ", e);
                 }
             }
+            return true; // is attached.
         }
     },
 
@@ -1002,6 +1014,8 @@ Firebug.CommandLine.injector = {
     {
         var scriptSource = getResource("chrome://firebug/content/commandLineInjected.js");
         Firebug.Debugger.evaluate(scriptSource, context);
+        if (FBTrace.DBG_CONSOLE)
+            FBTrace.sysout("evalCommandLineScript ", scriptSource);
     },
 
     injectCommandLineScript: function(doc)

@@ -1424,6 +1424,9 @@ NetPanel.prototype = domplate(Firebug.ActivablePanel,
 
     enumerateRequests: function(fn)
     {
+        if (!this.table)
+            return;
+
         var rows = getElementsByClass(this.table, "netRow");
         for (var i=0; i<rows.length; i++)
         {
@@ -2726,7 +2729,7 @@ function getFileCategory(file)
     {
         if (FBTrace.DBG_NET)
             FBTrace.sysout("net.getFileCategory; XHR for: " + file.href, file);
-        return "xhr";
+        return file.category = "xhr";
     }
 
     if (!file.mimeType)
@@ -2740,7 +2743,15 @@ function getFileCategory(file)
         FBTrace.sysout("net.getFileCategory; " + mimeCategoryMap[file.mimeType] +
             ", mimeType: " + file.mimeType + " for: " + file.href, file);
 
-    return (file.category = mimeCategoryMap[file.mimeType]);
+    if (!file.mimeType)
+        return "";
+
+    // Solve cases when charset is also specified, eg "text/html; charset=UTF-8".
+    var mimeType = file.mimeType;
+    if (mimeType)
+        mimeType = mimeType.split(";")[0];
+
+    return (file.category = mimeCategoryMap[mimeType]);
 }
 
 function getMimeType(mimeType, uri)
@@ -2875,7 +2886,9 @@ Firebug.NetMonitor.NetInfoBody = domplate(Firebug.Rep, new Firebug.Listener(),
             TR(
                 TD({class: "netInfoParamName"}, "$param.name"),
                 TD({class: "netInfoParamValue"},
-                    PRE("$param|getParamValue")
+                    FOR("line", "$param|getParamValueIterator",
+                        CODE("$line")
+                    )
                 )
             )
         ),
@@ -2923,12 +2936,13 @@ Firebug.NetMonitor.NetInfoBody = domplate(Firebug.Rep, new Firebug.Listener(),
         this.selectTab(event.currentTarget);
     },
 
-    getParamValue: function(param)
+    getParamValueIterator: function(param)
     {
-        // This value is inserted into PRE element and so, make sure the HTML isn't escaped (1210).
+        // This value is inserted into CODE element and so, make sure the HTML isn't escaped (1210).
         // This is why the second parameter is true.
-        // The PRE element preserves whitespaces so they are displayed the same, as they come from
-        // the server (1194).
+        // The CODE (with style white-space:pre) element preserves whitespaces so they are
+        // displayed the same, as they come from the server (1194).
+        // In case of a long header values of post parameters the value must be wrapped (2105).
         return wrapText(param.value, true);
     },
 
